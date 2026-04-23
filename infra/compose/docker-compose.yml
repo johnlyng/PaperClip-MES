@@ -55,7 +55,7 @@ services:
       - emqx_data:/opt/emqx/data
       - emqx_log:/opt/emqx/log
     healthcheck:
-      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/18083' || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5

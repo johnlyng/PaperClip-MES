@@ -6,24 +6,33 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm@9
 
-# Copy workspace manifests for dependency caching
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+# Copy workspace manifests and pnpm config for dependency caching
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY apps/opcua-collector/package.json ./apps/opcua-collector/
+COPY apps/scadalts-collector/package.json ./apps/scadalts-collector/
 COPY packages/types/package.json ./packages/types/
 COPY packages/domain/package.json ./packages/domain/
+COPY packages/db/package.json ./packages/db/
+COPY packages/test-fixtures/package.json ./packages/test-fixtures/
 
 # Install all workspace dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source
+# Copy source for all packages the API depends on
 COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
 COPY packages/types ./packages/types
 COPY packages/domain ./packages/domain
+COPY packages/db ./packages/db
+COPY packages/test-fixtures ./packages/test-fixtures
 
 # Build dependency packages first, then the app
 RUN pnpm --filter @mes/types build && \
     pnpm --filter @mes/domain build && \
+    pnpm --filter @mes/db build && \
+    pnpm --filter @mes/test-fixtures build && \
     pnpm --filter @mes/api build
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
@@ -33,16 +42,23 @@ WORKDIR /app
 
 RUN npm install -g pnpm@9
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY apps/opcua-collector/package.json ./apps/opcua-collector/
+COPY apps/scadalts-collector/package.json ./apps/scadalts-collector/
 COPY packages/types/package.json ./packages/types/
 COPY packages/domain/package.json ./packages/domain/
+COPY packages/db/package.json ./packages/db/
+COPY packages/test-fixtures/package.json ./packages/test-fixtures/
 
 RUN pnpm install --frozen-lockfile --prod
 
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/packages/types/dist ./packages/types/dist
 COPY --from=builder /app/packages/domain/dist ./packages/domain/dist
+COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/test-fixtures/dist ./packages/test-fixtures/dist
 
 ENV NODE_ENV=production
 EXPOSE 3000

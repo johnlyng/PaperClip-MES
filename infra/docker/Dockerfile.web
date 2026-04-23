@@ -5,9 +5,15 @@ WORKDIR /app
 
 RUN npm install -g pnpm@9
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
+COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
+COPY apps/opcua-collector/package.json ./apps/opcua-collector/
+COPY apps/scadalts-collector/package.json ./apps/scadalts-collector/
 COPY packages/types/package.json ./packages/types/
+COPY packages/domain/package.json ./packages/domain/
+COPY packages/db/package.json ./packages/db/
+COPY packages/test-fixtures/package.json ./packages/test-fixtures/
 
 RUN pnpm install --frozen-lockfile
 
