@@ -15,6 +15,10 @@
     "./work-order": {
       "import": "./dist/work-order/index.js",
       "types": "./dist/work-order/index.d.ts"
+    },
+    "./oee": {
+      "import": "./dist/oee/index.js",
+      "types": "./dist/oee/index.d.ts"
     }
   },
   "main": "./dist/index.js",
@@ -22,7 +26,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.mjs",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -32,6 +37,7 @@
     "typescript": "*",
     "@types/jest": "^29.5.14",
     "jest": "^29.7.0",
-    "ts-jest": "^29.2.5"
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2"
   }
 }

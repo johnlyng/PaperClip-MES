@@ -4,6 +4,12 @@
 import type { WorkOrder, Machine, User, OEESnapshot, MachineTelemetry } from "@mes/types";
 export { MockERPAdapter } from "@mes/domain";
 
+// Process-manufacturing seeds (board-confirmed priority)
+export * from "./seeds/process-manufacturing.js";
+
+// Testcontainers helpers (integration tests only — not imported in unit test builds)
+export * from "./containers/index.js";
+
 // ─── Seed Dates ──────────────────────────────────────────────────────────────
 
 export const SEED_DATE = new Date("2026-04-01T08:00:00.000Z");

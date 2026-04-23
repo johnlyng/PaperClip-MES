@@ -17,6 +17,23 @@
       "inputs": ["src/**", "test/**", "tsconfig.json"],
       "outputs": ["coverage/**"]
     },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig.json", "jest.config.mjs", "vitest.config.ts"],
+      "outputs": ["coverage/**"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig.json", "jest.config.mjs"],
+      "outputs": ["coverage/**"],
+      "cache": false
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "inputs": ["e2e/**", "playwright.config.ts"],
+      "outputs": ["e2e/test-results/**", "e2e/playwright-report/**"],
+      "cache": false
+    },
     "lint": {
       "inputs": ["src/**", ".eslintrc*", "tsconfig.json"]
     },
