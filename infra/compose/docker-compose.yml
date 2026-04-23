@@ -10,6 +10,9 @@ version: "3.9"
 # Services:
 #   postgres            — PostgreSQL 16 + TimescaleDB extension (port 5432)
 #   emqx                — EMQX 5 MQTT broker (MQTT: 1883, Dashboard: 18083, WebSocket: 8083)
+#   api                 — MES API (Fastify v5, port 3000)
+#   web                 — React 19 frontend via nginx (port 8080)
+#   opcua-collector     — OPC-UA → MQTT bridge (dev: synthetic telemetry mode)
 #   scadalts-collector  — Polls Scada-LTS REST API and publishes telemetry to EMQX (ADR-001 Decision 7)
 
 services:
@@ -58,10 +61,65 @@ services:
       retries: 5
       start_period: 60s
 
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+    container_name: mes-api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://mes:mes@postgres:5432/mes_dev}
+      - MQTT_URL=${MQTT_URL:-mqtt://emqx:1883}
+      - JWT_SECRET=${JWT_SECRET:-dev-only-secret-change-me-in-production}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8080}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - API_PORT=3000
+      - API_HOST=0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+    container_name: mes-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  opcua-collector:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.opcua-collector
+    container_name: mes-opcua-collector
+    restart: unless-stopped
+    environment:
+      - MQTT_URL=${MQTT_URL:-mqtt://emqx:1883}
+      - OPCUA_ENDPOINTS=${OPCUA_ENDPOINTS:-[]}
+      - OPCUA_SECURITY_POLICY=${OPCUA_SECURITY_POLICY:-None}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
   scadalts-collector:
     build:
-      context: ../../apps/scadalts-collector
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.scadalts-collector
     container_name: mes-scadalts-collector
     restart: unless-stopped
     volumes:

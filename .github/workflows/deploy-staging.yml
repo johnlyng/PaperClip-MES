@@ -1,0 +1,129 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ─── API ────────────────────────────────────────────────────────────────
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.api
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ steps.meta.outputs.version }},${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      # ─── Web ────────────────────────────────────────────────────────────────
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.web
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/web:${{ steps.meta.outputs.version }},${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      # ─── ScadaLTS Collector ─────────────────────────────────────────────────
+      - name: Build and push ScadaLTS Collector image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.scadalts-collector
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/scadalts-collector:${{ steps.meta.outputs.version }},${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/scadalts-collector:latest
+          cache-from: type=gha,scope=scadalts-collector
+          cache-to: type=gha,mode=max,scope=scadalts-collector
+
+      # ─── OPC-UA Collector ───────────────────────────────────────────────────
+      - name: Build and push OPC-UA Collector image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.opcua-collector
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/opcua-collector:${{ steps.meta.outputs.version }},${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/opcua-collector:latest
+          cache-from: type=gha,scope=opcua-collector
+          cache-to: type=gha,mode=max,scope=opcua-collector
+
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    timeout-minutes: 15
+    environment: staging
+    # TODO: Configure staging environment secrets and uncomment the deploy steps below.
+    # Required secrets: STAGING_HOST, STAGING_USER, STAGING_SSH_KEY (or equivalent for your platform).
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging host
+        # Placeholder: replace with your actual deploy mechanism.
+        # Options:
+        #   - SSH + docker compose pull && docker compose up -d
+        #   - AWS ECS update-service
+        #   - k3s kubectl set image
+        #   - Render/Fly.io deploy hook
+        run: |
+          echo "Image tag: ${{ needs.build-and-push.outputs.image_tag }}"
+          echo "Staging deploy step — configure STAGING_HOST, STAGING_USER, and STAGING_SSH_KEY secrets."
+          echo "See infra/deploy/staging.md for setup instructions."
+        # Uncomment and adapt once staging infra is provisioned:
+        # - name: SSH deploy
+        #   uses: appleboy/ssh-action@v1
+        #   with:
+        #     host: ${{ secrets.STAGING_HOST }}
+        #     username: ${{ secrets.STAGING_USER }}
+        #     key: ${{ secrets.STAGING_SSH_KEY }}
+        #     script: |
+        #       cd /opt/mes
+        #       export IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+        #       docker compose pull
+        #       docker compose up -d --remove-orphans
