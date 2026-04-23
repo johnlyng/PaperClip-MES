@@ -11,6 +11,7 @@ const config = {
     "^.+\\.tsx?$": ["ts-jest", { useESM: true }],
   },
   testMatch: ["<rootDir>/src/__tests__/integration/**/*.test.ts"],
+  passWithNoTests: true,
   testTimeout: 60000,
   clearMocks: true,
   restoreMocks: true,

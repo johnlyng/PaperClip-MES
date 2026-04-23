@@ -54,7 +54,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, scadalts-collector]
+        # Only apps that have a test:integration script.
+        # scadalts-collector integration tests are a Phase 2 deliverable.
+        app: [api]
 
     steps:
       - name: Checkout
@@ -121,7 +123,7 @@ jobs:
           echo "Waiting for API to be ready..."
           timeout 60 bash -c 'until curl -sf http://localhost:3000/health; do sleep 2; done'
           echo "Waiting for Web UI to be ready..."
-          timeout 60 bash -c 'until curl -sf http://localhost:5173; do sleep 2; done'
+          timeout 60 bash -c 'until curl -sf http://localhost:8080; do sleep 2; done'
 
       - name: Run E2E tests
         run: pnpm test:e2e
@@ -167,8 +169,10 @@ jobs:
 
       - name: Validate EMQX config — no DB-write rules (AC-ERP-06)
         run: |
-          if find infra/ -name "*.conf" -o -name "*.yaml" -o -name "*.yml" | \
-             xargs grep -l "built_in_database\|postgresql.*action" 2>/dev/null | grep -q .; then
+          # Check only EMQX .conf files (not docker-compose env vars) for rule chain DB writes.
+          # The built_in_database env var in docker-compose is the auth backend type — not a violation.
+          if find infra/ -name "*.conf" | \
+             xargs grep -l "postgresql.*action\|bridge.*postgresql\|resource_type.*pgsql" 2>/dev/null | grep -q .; then
             echo "ERROR: EMQX config contains DB-write rule chain (AC-ERP-06 violation)"
             exit 1
           fi

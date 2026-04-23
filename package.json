@@ -11,13 +11,19 @@
     "docker:up": "docker compose -f infra/compose/docker-compose.yml up -d",
     "docker:down": "docker compose -f infra/compose/docker-compose.yml down",
     "docker:logs": "docker compose -f infra/compose/docker-compose.yml logs -f",
-    "setup": "pnpm install && pnpm docker:up && pnpm turbo dev"
+    "setup": "pnpm install && pnpm docker:up && pnpm turbo dev",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts"
   },
   "devDependencies": {
     "turbo": "^2.3.3",
     "typescript": "^5.7.2",
     "prettier": "^3.4.2",
-    "@types/node": "^22.10.0"
+    "@types/node": "^22.10.0",
+    "eslint": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.49.0"
   },
   "engines": {
     "node": ">=22.0.0",
