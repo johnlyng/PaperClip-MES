@@ -122,6 +122,51 @@ export interface User {
   createdAt: Date;
 }
 
+// ─── Production Schedules ─────────────────────────────────────────────────────
+
+export type ProductionScheduleStatus =
+  | "draft"
+  | "confirmed"
+  | "active"
+  | "completed"
+  | "cancelled";
+
+export interface ProductionSchedule {
+  id: string;
+  workOrderId: string;
+  machineId: string;
+  lineId?: string;
+  sequenceNumber: number;
+  scheduledStart: Date;
+  scheduledEnd: Date;
+  actualStart?: Date;
+  actualEnd?: Date;
+  shiftId?: string;
+  operatorId?: string;
+  status: ProductionScheduleStatus;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ─── Resource Assignments ─────────────────────────────────────────────────────
+
+export type ResourceType = "machine" | "operator" | "tool" | "material";
+
+export interface ResourceAssignment {
+  id: string;
+  workOrderId: string;
+  resourceType: ResourceType;
+  resourceId: string;
+  quantity: number;
+  unit?: string;
+  scheduledStart?: Date;
+  scheduledEnd?: Date;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ─── MQTT Topic Helpers ──────────────────────────────────────────────────────
 
 export const MqttTopics = {

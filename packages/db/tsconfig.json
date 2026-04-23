@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "composite": true
+  },
+  "include": ["schema/**/*.ts", "src/**/*.ts", "drizzle.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}
