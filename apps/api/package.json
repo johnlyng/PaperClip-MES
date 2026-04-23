@@ -12,9 +12,11 @@
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.mjs",
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.integration.config.mjs",
     "lint": "eslint src",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "generate-telemetry": "tsx src/scripts/generate-telemetry.ts"
   },
   "dependencies": {
+    "@mes/db": "workspace:*",
     "@mes/domain": "workspace:*",
     "@mes/types": "workspace:*",
     "fastify": "^5.2.1",

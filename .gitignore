@@ -33,3 +33,12 @@ pnpm-debug.log*
 
 # Docker
 infra/compose/data/
+
+# TypeScript build artifacts
+*.tsbuildinfo
+
+# Paperclip agent helper scripts (not part of the MES codebase)
+brief_integration_engineer.py
+close_gst*.py
+create_scaffold_task.py
+update_adr.py

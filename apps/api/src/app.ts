@@ -4,6 +4,8 @@ import jwt from "@fastify/jwt";
 import websocket from "@fastify/websocket";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
+import { MqttSubscriber } from "./services/mqtt-subscriber.js";
+import { createDb } from "@mes/db";
 
 export function buildApp() {
   const app = Fastify({
@@ -43,6 +45,38 @@ export function buildApp() {
   app.register(swaggerUi, {
     routePrefix: "/docs",
     uiConfig: { docExpansion: "list" },
+  });
+
+  // ─── MQTT telemetry subscriber ─────────────────────────────────────────────
+  // Connects to EMQX on startup, subscribes to mes/telemetry/#, and writes
+  // every MqttTelemetryPayload into the machine_telemetry TimescaleDB hypertable.
+  // Skipped when DATABASE_URL or MQTT_URL is absent (test / CI environments).
+
+  let mqttSubscriber: MqttSubscriber | null = null;
+
+  app.addHook("onReady", async () => {
+    if (!process.env["DATABASE_URL"]) {
+      app.log.warn("DATABASE_URL not set — MQTT subscriber skipped");
+      return;
+    }
+    if (process.env["NODE_ENV"] === "test") {
+      return; // integration tests spin up their own MQTT container
+    }
+    try {
+      const db = createDb();
+      mqttSubscriber = new MqttSubscriber(db, app.log);
+      await mqttSubscriber.connect();
+      app.log.info("MQTT telemetry subscriber started");
+    } catch (err) {
+      // Non-fatal: API still serves OEE queries from existing DB data
+      app.log.error({ err }, "MQTT subscriber failed to start — telemetry ingestion disabled");
+    }
+  });
+
+  app.addHook("onClose", async () => {
+    if (mqttSubscriber) {
+      await mqttSubscriber.disconnect();
+    }
   });
 
   // ─── Routes ────────────────────────────────────────────────────────────────

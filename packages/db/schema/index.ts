@@ -6,6 +6,7 @@
  *   import { workOrders, workOrderStatusEnum } from "@mes/db/schema";
  *   import { productionSchedules } from "@mes/db/schema";
  *   import { resourceAssignments } from "@mes/db/schema";
+ *   import { machineTelemetry } from "@mes/db/schema";
  */
 
 export {
@@ -28,3 +29,12 @@ export {
   type ResourceAssignmentRow,
   type NewResourceAssignmentRow,
 } from "./resource-assignments.js";
+
+export {
+  machineTelemetry,
+  METRIC_STATUS,
+  METRIC_OUTPUT_COUNT,
+  METRIC_GOOD_COUNT,
+  type MachineTelemetryRow,
+  type NewMachineTelemetryRow,
+} from "./machine-telemetry.js";

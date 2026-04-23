@@ -38,6 +38,9 @@ importers:
       '@fastify/websocket':
         specifier: ^11.0.2
         version: 11.2.0
+      '@mes/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@mes/domain':
         specifier: workspace:*
         version: link:../../packages/domain
