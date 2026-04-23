@@ -24,11 +24,15 @@ export interface WorkOrder {
   actualStart?: Date;
   actualEnd?: Date;
   status: WorkOrderStatus;
+  priority: number;
   machineId?: string;
   operatorId?: string;
+  supervisorId?: string;
   bomId?: string;
+  erpReference?: string;
   notes?: string;
   metadata?: Record<string, unknown>;
+  createdBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
