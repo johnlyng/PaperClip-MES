@@ -1,0 +1,34 @@
+# Scada-LTS Collector — data point configuration
+#
+# Each entry maps a Scada-LTS XID to a machineId + metric for MQTT publishing.
+# XIDs are defined in the Scada-LTS admin UI under Data Sources → Data Points.
+#
+# Replace placeholder XIDs and machine IDs with real values from the Scada-LTS
+# instance (Integration Engineer task — GST Phase 2).
+
+scadalts:
+  baseUrl: http://scadalts:8080
+  username: admin
+  # password is injected at runtime via SCADALTS_PASSWORD env var
+  password: ""
+  # Re-authenticate every 25 minutes to keep session alive (session TTL: 30 min)
+  keepaliveIntervalMs: 1500000
+
+mqtt:
+  url: mqtt://emqx:1883
+
+datapoints:
+  - xid: DP_MACHINE1_SPINDLE_SPEED
+    machineId: machine-001
+    metric: spindleSpeed
+    intervalMs: 5000
+
+  - xid: DP_MACHINE1_FEED_RATE
+    machineId: machine-001
+    metric: feedRate
+    intervalMs: 5000
+
+  - xid: DP_MACHINE2_SPINDLE_SPEED
+    machineId: machine-002
+    metric: spindleSpeed
+    intervalMs: 10000

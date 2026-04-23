@@ -1,0 +1,47 @@
+# Scada-LTS Collector — data point configuration (local dev copy)
+#
+# This file is volume-mounted into the scadalts-collector container by docker-compose.
+# It overrides the default config/datapoints.yml baked into the app image.
+#
+# Each entry maps a Scada-LTS XID to a machineId + metric for MQTT publishing.
+# XIDs are defined in the Scada-LTS admin UI under Data Sources → Data Points.
+#
+# Replace placeholder XIDs with real values from your Scada-LTS instance.
+# machineIds must match the UUIDs seeded in infra/compose/init-scripts/01-init-timescaledb.sql
+
+scadalts:
+  baseUrl: http://scadalts:8080
+  username: admin
+  # password is injected at runtime via SCADALTS_PASSWORD env var
+  password: ""
+  # Re-authenticate every 25 minutes to keep session alive (session TTL: 30 min)
+  keepaliveIntervalMs: 1500000
+
+mqtt:
+  url: mqtt://emqx:1883
+
+datapoints:
+  - xid: DP_LATHE_ALPHA_SPINDLE_SPEED
+    machineId: "00000000-0000-0000-0000-000000000001"
+    metric: spindleSpeed
+    intervalMs: 5000
+
+  - xid: DP_LATHE_ALPHA_FEED_RATE
+    machineId: "00000000-0000-0000-0000-000000000001"
+    metric: feedRate
+    intervalMs: 5000
+
+  - xid: DP_LATHE_ALPHA_TEMPERATURE
+    machineId: "00000000-0000-0000-0000-000000000001"
+    metric: temperature
+    intervalMs: 10000
+
+  - xid: DP_MILLING_BETA_SPINDLE_SPEED
+    machineId: "00000000-0000-0000-0000-000000000002"
+    metric: spindleSpeed
+    intervalMs: 5000
+
+  - xid: DP_MILLING_BETA_LOAD
+    machineId: "00000000-0000-0000-0000-000000000002"
+    metric: load
+    intervalMs: 10000

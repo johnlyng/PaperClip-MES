@@ -1,0 +1,80 @@
+version: "3.9"
+
+# MES Local Development Stack
+# ADR-001 Decision 8: Docker Compose for local dev — identical container images
+# used for both cloud (ECS Fargate) and on-prem (k3s) paths.
+#
+# Usage:
+#   docker compose -f infra/compose/docker-compose.yml up -d
+#
+# Services:
+#   postgres            — PostgreSQL 16 + TimescaleDB extension (port 5432)
+#   emqx                — EMQX 5 MQTT broker (MQTT: 1883, Dashboard: 18083, WebSocket: 8083)
+#   scadalts-collector  — Polls Scada-LTS REST API and publishes telemetry to EMQX (ADR-001 Decision 7)
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: mes-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mes_dev
+      POSTGRES_USER: mes
+      POSTGRES_PASSWORD: mes
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mes -d mes_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  emqx:
+    image: emqx/emqx:5.8.4
+    container_name: mes-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_NODE__NAME: emqx@localhost
+      EMQX_LOG__CONSOLE__LEVEL: warning
+      # Allow anonymous connections in dev (gate with auth in production)
+      EMQX_AUTHENTICATION__1__MECHANISM: password_based
+      EMQX_AUTHENTICATION__1__BACKEND: built_in_database
+      EMQX_AUTHENTICATION__1__ENABLE: "false"
+    ports:
+      - "1883:1883"    # MQTT
+      - "8083:8083"    # MQTT over WebSocket
+      - "18083:18083"  # EMQX Dashboard (admin / public)
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  scadalts-collector:
+    build:
+      context: ../../apps/scadalts-collector
+      dockerfile: Dockerfile
+    container_name: mes-scadalts-collector
+    restart: unless-stopped
+    volumes:
+      - ./config/datapoints.yml:/app/config/datapoints.yml:ro
+    environment:
+      - SCADALTS_BASE_URL=${SCADALTS_BASE_URL:-http://scadalts:8080}
+      - SCADALTS_PASSWORD=${SCADALTS_PASSWORD:-}
+      - MQTT_URL=${MQTT_URL:-mqtt://emqx:1883}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  emqx_data:
+  emqx_log:
