@@ -1,29 +1,42 @@
 /**
  * Scada-LTS Collector — entry point.
  *
- * ADR-001 Decision 7 (amended): Scada-LTS replaces the OPC-UA collector
- * as the SCADA integration path. This service polls the Scada-LTS REST API
- * and publishes machine telemetry to EMQX via MQTT.
+ * ADR-001 Decision 7 (amended): Scada-LTS replaces OPC-UA as the SCADA
+ * integration path. This service polls the Scada-LTS REST API and publishes
+ * machine telemetry to EMQX via MQTT.
  *
  * Data flow:
- *   Scada-LTS REST API → DataPointPoller → MqttPublisher → EMQX → TimescaleDB
+ *   Scada-LTS REST API → DataPointPoller → MqttPublisher → EMQX
  *
- * Configuration:
- *   config/datapoints.yml — machine/datapoint mapping (volume-mounted in Docker)
- *   SCADALTS_BASE_URL, SCADALTS_PASSWORD, MQTT_URL — env var overrides (see config.ts)
+ * Startup contract:
+ *   1. Authenticate to Scada-LTS — exit 1 on failure (Docker will restart).
+ *   2. Validate configured XIDs — warn if missing, do NOT crash.
+ *   3. Start session keepalive, poll loops, and health check server.
  */
 
 import { loadConfig } from "./config.js";
 import { ScadaLTSAuthClient } from "./auth.js";
 import { DataPointPoller } from "./poller.js";
 import { MqttPublisher } from "./publisher.js";
+import { startHealthServer } from "./health.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("startup");
+
+// ─── Load configuration ───────────────────────────────────────────────────────
 
 const config = loadConfig();
+log.info(
+  { datapoints: config.datapoints.length, baseUrl: config.scadalts.baseUrl },
+  "Config loaded",
+);
 
-// Publish telemetry to EMQX
+// ─── MQTT publisher ───────────────────────────────────────────────────────────
+
 const publisher = new MqttPublisher(config.mqtt.url);
 
-// Authenticate with Scada-LTS
+// ─── Scada-LTS auth ───────────────────────────────────────────────────────────
+
 const auth = new ScadaLTSAuthClient(
   config.scadalts.baseUrl,
   config.scadalts.username,
@@ -32,29 +45,40 @@ const auth = new ScadaLTSAuthClient(
 
 try {
   await auth.login();
-  console.info("[startup] Scada-LTS authenticated");
-} catch (err) {
-  console.error("[startup] Initial login failed — will retry on first poll:", err);
+  log.info("Initial authentication succeeded");
+} catch (err: unknown) {
+  log.error({ err }, "Initial authentication failed — exiting");
+  process.exit(1);
 }
 
-// Start session keepalive
+// ─── XID validation (warn, don't crash) ──────────────────────────────────────
+
+const configuredXids = config.datapoints.map((dp) => dp.xid);
+await auth.validateXids(configuredXids);
+
+// ─── Session keepalive ────────────────────────────────────────────────────────
+
 auth.startKeepalive(config.scadalts.keepaliveIntervalMs);
 
-// Start per-XID poll loops
+// ─── Polling loops ────────────────────────────────────────────────────────────
+
 const poller = new DataPointPoller(config.scadalts.baseUrl, auth, publisher);
 poller.startAll(config.datapoints);
 
-console.info(
-  `[startup] Collector running — ${config.datapoints.length.toString()} datapoints configured`
-);
+log.info({ datapoints: config.datapoints.length }, "Collector running");
+
+// ─── Health check server ──────────────────────────────────────────────────────
+
+const healthServer = startHealthServer();
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
 
 function shutdown(signal: string): void {
-  console.info(`[shutdown] Received ${signal} — stopping`);
+  log.info({ signal }, "Shutting down");
   poller.stopAll();
   auth.stopKeepalive();
   publisher.end();
+  healthServer.close();
   process.exit(0);
 }
 

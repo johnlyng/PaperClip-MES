@@ -11,11 +11,11 @@
 
 scadalts:
   baseUrl: http://scadalts:8080
-  username: admin
+  username: mes_collector
   # password is injected at runtime via SCADALTS_PASSWORD env var
   password: ""
   # Re-authenticate every 25 minutes to keep session alive (session TTL: 30 min)
-  keepaliveIntervalMs: 1500000
+  keepaliveIntervalMs: 60000
 
 mqtt:
   url: mqtt://emqx:1883

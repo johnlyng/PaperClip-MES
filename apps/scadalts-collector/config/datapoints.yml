@@ -1,34 +1,37 @@
 # Scada-LTS Collector — data point configuration
 #
-# Each entry maps a Scada-LTS XID to a machineId + metric for MQTT publishing.
+# Non-engineers: add new machines/data points here without touching TypeScript.
 # XIDs are defined in the Scada-LTS admin UI under Data Sources → Data Points.
 #
-# Replace placeholder XIDs and machine IDs with real values from the Scada-LTS
-# instance (Integration Engineer task — GST Phase 2).
+# Fields per data point:
+#   xid          — Scada-LTS data point XID (exact string from the UI)
+#   machineId    — machine identifier used for MQTT topic routing
+#   metric       — metric name published in the telemetry payload
+#   intervalMs   — poll interval in milliseconds
 
 scadalts:
-  baseUrl: http://scadalts:8080
-  username: admin
-  # password is injected at runtime via SCADALTS_PASSWORD env var
+  baseUrl: http://scadalts:8080          # override: SCADALTS_BASE_URL env var
+  username: mes_collector
+  # password: injected at runtime via SCADALTS_PASSWORD env var (never put here)
   password: ""
-  # Re-authenticate every 25 minutes to keep session alive (session TTL: 30 min)
-  keepaliveIntervalMs: 1500000
+  # Keepalive ping interval — prevents session expiry (session TTL is ~30 min)
+  keepaliveIntervalMs: 60000             # 60 s per AGENTS.md contract
 
 mqtt:
-  url: mqtt://emqx:1883
+  url: mqtt://emqx:1883                  # override: MQTT_URL env var
 
 datapoints:
-  - xid: DP_MACHINE1_SPINDLE_SPEED
-    machineId: machine-001
-    metric: spindleSpeed
+  - xid: DP_MACHINE_A_SPINDLE_RPM
+    machineId: machine-a
+    metric: spindle_rpm
     intervalMs: 5000
 
-  - xid: DP_MACHINE1_FEED_RATE
-    machineId: machine-001
-    metric: feedRate
+  - xid: DP_MACHINE_A_FEED_RATE
+    machineId: machine-a
+    metric: feed_rate_mm_min
     intervalMs: 5000
 
-  - xid: DP_MACHINE2_SPINDLE_SPEED
-    machineId: machine-002
-    metric: spindleSpeed
+  - xid: DP_MACHINE_B_TEMP
+    machineId: machine-b
+    metric: temperature_c
     intervalMs: 10000

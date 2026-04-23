@@ -1,35 +1,40 @@
 /**
- * DataPointPoller — per-XID HTTP polling loop against the Scada-LTS REST API.
+ * DataPointPoller — per-XID HTTP polling against the Scada-LTS REST API.
  *
- * Scada-LTS endpoint for current value:
+ * Endpoint:
  *   GET /api/point_value/getValue/{xid}.json
  *   Cookie: JSESSIONID=...
  *
- * Each configured data point gets its own setInterval at the configured
- * intervalMs. Consecutive fetch errors increment an error counter; after
- * MAX_ERRORS the poller logs a warning but continues (Integration Engineer
- * will add circuit-breaker logic in Phase 2).
- *
- * Phase 1 scaffold: polling loop and error counting are wired; value parsing
- * and schema validation are stubs to be completed by the Integration Engineer.
+ * Error-handling contract:
+ *   - 401 response → re-auth once; if still 401, log and skip cycle.
+ *   - Non-2xx response → log and skip cycle (increment error counter).
+ *   - 3 consecutive failures for a data point → publish DISCONNECTED to
+ *     mes/{machineId}/status.
+ *   - First success after DISCONNECTED state → publish CONNECTED.
  */
 
 import type { DataPoint } from "./config.js";
 import type { ScadaLTSAuthClient } from "./auth.js";
 import type { MqttPublisher } from "./publisher.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("poller");
 
 /** Shape of the Scada-LTS point_value/getValue response. */
 interface ScadaPointValue {
-  ts: number;      // Unix timestamp in ms
+  ts: number;     // Unix timestamp in ms
   value: number;
-  type: string;    // e.g. "NumericValue"
+  type: string;   // e.g. "NumericValue"
 }
 
-const MAX_ERRORS = 5;
+/** Number of consecutive failures before publishing DISCONNECTED. */
+const DISCONNECT_THRESHOLD = 3;
 
 export class DataPointPoller {
   private readonly timers: ReturnType<typeof setInterval>[] = [];
-  private readonly errorCounts = new Map<string, number>();
+  private readonly consecutiveErrors = new Map<string, number>();
+  /** XIDs that have already emitted DISCONNECTED and not yet recovered. */
+  private readonly disconnected = new Set<string>();
 
   constructor(
     private readonly baseUrl: string,
@@ -40,12 +45,12 @@ export class DataPointPoller {
   /** Start one poll loop per data point. */
   startAll(datapoints: DataPoint[]): void {
     for (const dp of datapoints) {
-      this.errorCounts.set(dp.xid, 0);
+      this.consecutiveErrors.set(dp.xid, 0);
       const timer = setInterval(() => {
         void this.pollOne(dp);
       }, dp.intervalMs);
       this.timers.push(timer);
-      console.info(`[poller] Started poll for XID ${dp.xid} every ${dp.intervalMs.toString()} ms`);
+      log.info({ xid: dp.xid, intervalMs: dp.intervalMs }, "Poll loop started");
     }
   }
 
@@ -53,40 +58,80 @@ export class DataPointPoller {
   stopAll(): void {
     for (const timer of this.timers) clearInterval(timer);
     this.timers.length = 0;
-    console.info("[poller] All poll loops stopped");
+    log.info("All poll loops stopped");
   }
 
   private async pollOne(dp: DataPoint): Promise<void> {
+    const url = `${this.baseUrl}/api/point_value/getValue/${encodeURIComponent(dp.xid)}.json`;
     try {
-      const url = `${this.baseUrl}/api/point_value/getValue/${encodeURIComponent(dp.xid)}.json`;
-      const res = await fetch(url, {
+      let res = await fetch(url, {
         headers: { Cookie: this.auth.getSessionCookie() },
       });
 
+      // 401 — try re-auth once, then retry the request
+      if (res.status === 401) {
+        log.warn({ xid: dp.xid }, "Got 401 — attempting re-auth");
+        const ok = await this.auth.reAuth();
+        if (!ok) {
+          this.recordFailure(dp, "401 and re-auth failed");
+          return;
+        }
+        res = await fetch(url, {
+          headers: { Cookie: this.auth.getSessionCookie() },
+        });
+        if (res.status === 401) {
+          this.recordFailure(dp, "401 persists after re-auth");
+          return;
+        }
+      }
+
       if (!res.ok) {
-        this.recordError(dp.xid, `HTTP ${res.status.toString()}`);
+        this.recordFailure(dp, `HTTP ${res.status.toString()} ${res.statusText}`);
         return;
       }
 
       const body = (await res.json()) as ScadaPointValue;
-      this.errorCounts.set(dp.xid, 0); // reset on success
-
-      this.publisher.publish({
-        machineId: dp.machineId,
-        metric: dp.metric,
-        value: body.value,
-        ts: new Date(body.ts).toISOString(),
-        tags: { xid: dp.xid, source: "scadalts" },
-      });
+      this.recordSuccess(dp, body);
     } catch (err: unknown) {
-      this.recordError(dp.xid, String(err));
+      this.recordFailure(dp, String(err));
     }
   }
 
-  private recordError(xid: string, reason: string): void {
-    const count = (this.errorCounts.get(xid) ?? 0) + 1;
-    this.errorCounts.set(xid, count);
-    const level = count >= MAX_ERRORS ? "error" : "warn";
-    console[level](`[poller] XID ${xid} error #${count.toString()}: ${reason}`);
+  private recordSuccess(dp: DataPoint, body: ScadaPointValue): void {
+    const wasDisconnected = this.disconnected.has(dp.xid);
+    this.consecutiveErrors.set(dp.xid, 0);
+    this.disconnected.delete(dp.xid);
+
+    if (wasDisconnected) {
+      this.publisher.publishStatus(dp.machineId, "CONNECTED");
+      log.info({ xid: dp.xid, machineId: dp.machineId }, "Recovered — published CONNECTED");
+    }
+
+    this.publisher.publish({
+      machineId: dp.machineId,
+      metric: dp.metric,
+      value: body.value,
+      ts: new Date(body.ts).toISOString(),
+      source: "scadalts",
+      xid: dp.xid,
+    });
+
+    log.debug({ xid: dp.xid, value: body.value }, "Poll OK");
+  }
+
+  private recordFailure(dp: DataPoint, reason: string): void {
+    const count = (this.consecutiveErrors.get(dp.xid) ?? 0) + 1;
+    this.consecutiveErrors.set(dp.xid, count);
+
+    log.warn({ xid: dp.xid, count, reason }, "Poll failure");
+
+    if (count === DISCONNECT_THRESHOLD && !this.disconnected.has(dp.xid)) {
+      this.disconnected.add(dp.xid);
+      this.publisher.publishStatus(dp.machineId, "DISCONNECTED");
+      log.error(
+        { xid: dp.xid, machineId: dp.machineId, count },
+        "Threshold reached — published DISCONNECTED",
+      );
+    }
   }
 }
