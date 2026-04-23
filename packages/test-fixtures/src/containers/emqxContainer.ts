@@ -36,7 +36,8 @@ const EMQX_IMAGE = "emqx/emqx:5.8.6";
 export async function startEmqxContainer(opts?: {
   image?: string;
 }): Promise<StartedEmqxContainer> {
-  const { GenericContainer, Wait } = await import("testcontainers");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { GenericContainer, Wait } = await import("testcontainers" as any);
 
   const image = opts?.image ?? EMQX_IMAGE;
 

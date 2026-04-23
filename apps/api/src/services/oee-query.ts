@@ -40,7 +40,7 @@ export interface OEEQueryParams {
 }
 
 /** Row shape returned from the continuous aggregate views */
-interface AggRow {
+interface AggRow extends Record<string, unknown> {
   bucket: Date;
   machine_id: string;
   avg_status: number | null;
@@ -87,7 +87,7 @@ export class OEEQueryService {
       ORDER BY bucket ASC
     `);
 
-    return rows.map((row) => {
+    return (rows as AggRow[]).map((row) => {
       const avgStatus = row.avg_status ?? 0;
       const outputCount = row.output_count ?? 0;
       const goodCount = row.good_count ?? 0;

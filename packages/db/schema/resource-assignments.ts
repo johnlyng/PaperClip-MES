@@ -23,7 +23,7 @@ import {
   uuid,
   text,
   numeric,
-  timestamptz,
+  timestamp,
   index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -59,13 +59,13 @@ export const resourceAssignments = pgTable(
     unit: text("unit"),
 
     // Optional time window — NULL means full work order duration.
-    scheduledStart: timestamptz("scheduled_start"),
-    scheduledEnd: timestamptz("scheduled_end"),
+    scheduledStart: timestamp("scheduled_start", { withTimezone: true }),
+    scheduledEnd: timestamp("scheduled_end", { withTimezone: true }),
 
     notes: text("notes"),
 
-    createdAt: timestamptz("created_at").notNull().default(sql`now()`),
-    updatedAt: timestamptz("updated_at").notNull().default(sql`now()`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (table) => [
     // FK lookup for "get all resources for this work order".

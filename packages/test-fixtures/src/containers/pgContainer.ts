@@ -43,7 +43,8 @@ export async function startPgContainer(opts?: {
   database?: string;
 }): Promise<StartedPgContainer> {
   // Dynamic import keeps testcontainers out of non-integration test builds
-  const { GenericContainer, Wait } = await import("testcontainers");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { GenericContainer, Wait } = await import("testcontainers" as any);
 
   const image = opts?.image ?? TIMESCALEDB_IMAGE;
   const database = opts?.database ?? DEFAULT_DB;

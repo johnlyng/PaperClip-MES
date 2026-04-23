@@ -22,7 +22,7 @@ import {
   uuid,
   text,
   doublePrecision,
-  timestamptz,
+  timestamp,
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
@@ -32,7 +32,7 @@ import {
 export const machineTelemetry = pgTable(
   "machine_telemetry",
   {
-    ts: timestamptz("ts").notNull(),
+    ts: timestamp("ts", { withTimezone: true }).notNull(),
     machineId: uuid("machine_id").notNull(),
     metric: text("metric").notNull(),
     value: doublePrecision("value"),

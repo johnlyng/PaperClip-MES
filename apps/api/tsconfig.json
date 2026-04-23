@@ -8,6 +8,8 @@
   "exclude": ["src/**/__tests__/**", "node_modules", "dist"],
   "references": [
     { "path": "../../packages/types" },
-    { "path": "../../packages/domain" }
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/test-fixtures" }
   ]
 }

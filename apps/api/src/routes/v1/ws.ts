@@ -1,5 +1,13 @@
 import type { FastifyInstance } from "fastify";
-import type { WebSocket } from "ws";
+// WebSocket is provided at runtime by @fastify/websocket; use a minimal inline type
+// to avoid requiring @types/ws as a separate devDependency.
+interface WebSocket {
+  send(data: string): void;
+  ping(): void;
+  readyState: number;
+  OPEN: number;
+  on(event: "close" | "error", listener: (err?: Error) => void): this;
+}
 
 /**
  * WebSocket route for real-time telemetry.
@@ -35,7 +43,7 @@ export default async function wsRoutes(app: FastifyInstance) {
         app.log.info({ machineIds }, "WebSocket client disconnected from telemetry feed");
       });
 
-      socket.on("error", (err) => {
+      socket.on("error", (err?: Error) => {
         app.log.error({ err, machineIds }, "WebSocket error");
       });
     }

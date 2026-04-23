@@ -22,7 +22,14 @@ import type { MqttClient } from "mqtt";
 import type { MqttTelemetryPayload } from "@mes/types";
 import { machineTelemetry } from "@mes/db/schema";
 import type { Db } from "@mes/db";
-import type { Logger } from "pino";
+
+/** Minimal logger interface compatible with both Pino and Fastify's BaseLogger */
+interface ServiceLogger {
+  info(obj: object | string, msg?: string): void;
+  warn(obj: object | string, msg?: string): void;
+  error(obj: object | string, msg?: string): void;
+  debug(obj: object | string, msg?: string): void;
+}
 
 const TELEMETRY_TOPIC = "mes/telemetry/#";
 
@@ -32,14 +39,23 @@ const BATCH_SIZE = 50;
 /** Maximum ms to wait before flushing an incomplete batch */
 const FLUSH_INTERVAL_MS = 1_000;
 
+/** Row shape for the machine_telemetry hypertable insert */
+interface TelemetryInsertRow {
+  ts: Date;
+  machineId: string;
+  metric: string;
+  value: number | null;
+  tags: Record<string, string> | null;
+}
+
 export class MqttSubscriber {
   private client: MqttClient | null = null;
-  private batch: Array<typeof machineTelemetry.$inferInsert> = [];
+  private batch: TelemetryInsertRow[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly db: Db,
-    private readonly logger: Logger,
+    private readonly logger: ServiceLogger,
     private readonly mqttUrl: string = process.env["MQTT_URL"] ?? "mqtt://localhost:1883"
   ) {}
 
@@ -118,7 +134,9 @@ export class MqttSubscriber {
 
     const rows = this.batch.splice(0, this.batch.length);
     try {
-      await this.db.insert(machineTelemetry).values(rows);
+      // Cast to any to bridge the dist-compiled schema types with the runtime insert
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await this.db.insert(machineTelemetry).values(rows as any);
       this.logger.debug({ count: rows.length }, "Flushed telemetry batch to DB");
     } catch (err) {
       this.logger.error({ err, count: rows.length }, "Failed to insert telemetry batch");

@@ -24,7 +24,7 @@ import {
   uuid,
   text,
   integer,
-  timestamptz,
+  timestamp,
   index,
   check,
 } from "drizzle-orm/pg-core";
@@ -61,12 +61,12 @@ export const productionSchedules = pgTable(
     sequenceNumber: integer("sequence_number").notNull().default(0),
 
     // Planned window. CHECK prevents invalid ranges.
-    scheduledStart: timestamptz("scheduled_start").notNull(),
-    scheduledEnd: timestamptz("scheduled_end").notNull(),
+    scheduledStart: timestamp("scheduled_start", { withTimezone: true }).notNull(),
+    scheduledEnd: timestamp("scheduled_end", { withTimezone: true }).notNull(),
 
     // Populated when operator starts / completes this slot.
-    actualStart: timestamptz("actual_start"),
-    actualEnd: timestamptz("actual_end"),
+    actualStart: timestamp("actual_start", { withTimezone: true }),
+    actualEnd: timestamp("actual_end", { withTimezone: true }),
 
     // Shift this slot belongs to. Optional; not FK-constrained at MVP.
     shiftId: text("shift_id"),
@@ -78,8 +78,8 @@ export const productionSchedules = pgTable(
 
     notes: text("notes"),
 
-    createdAt: timestamptz("created_at").notNull().default(sql`now()`),
-    updatedAt: timestamptz("updated_at").notNull().default(sql`now()`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (table) => [
     // FK scan on work order.

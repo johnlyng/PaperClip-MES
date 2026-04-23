@@ -32,10 +32,9 @@ import {
   text,
   numeric,
   integer,
-  timestamptz,
+  timestamp,
   jsonb,
   index,
-  uniqueIndex,
   check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -76,12 +75,12 @@ export const workOrders = pgTable(
     priority: integer("priority").notNull().default(0),
 
     // Planned window. CHECK constraint prevents invalid ranges.
-    scheduledStart: timestamptz("scheduled_start").notNull(),
-    scheduledEnd: timestamptz("scheduled_end").notNull(),
+    scheduledStart: timestamp("scheduled_start", { withTimezone: true }).notNull(),
+    scheduledEnd: timestamp("scheduled_end", { withTimezone: true }).notNull(),
 
     // Set by state machine transitions (start / complete events).
-    actualStart: timestamptz("actual_start"),
-    actualEnd: timestamptz("actual_end"),
+    actualStart: timestamp("actual_start", { withTimezone: true }),
+    actualEnd: timestamp("actual_end", { withTimezone: true }),
 
     // Resource references — UUID types, application-enforced FK until
     // machines and users tables are created in a later migration.
@@ -102,9 +101,9 @@ export const workOrders = pgTable(
     metadata: jsonb("metadata").default(sql`'{}'::jsonb`),
 
     createdBy: uuid("created_by"),
-    createdAt: timestamptz("created_at").notNull().default(sql`now()`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
     // updated_at is maintained by a DB trigger (see migrations/0001_triggers.sql).
-    updatedAt: timestamptz("updated_at").notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (table) => [
     // Filters applied on every list query.
