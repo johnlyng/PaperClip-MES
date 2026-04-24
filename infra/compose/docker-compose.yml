@@ -146,7 +146,7 @@ services:
     volumes:
       - ./scadalts-context.xml:/usr/local/tomcat/webapps/Scada-LTS/META-INF/context.xml:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf 'http://localhost:8080/Scada-LTS/api/auth/admin.json?password=admin' -o /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf -X POST 'http://localhost:8080/Scada-LTS/api/auth/admin/admin' -o /dev/null || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10

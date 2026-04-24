@@ -2,7 +2,7 @@
  * DataPointPoller — per-XID HTTP polling against the Scada-LTS REST API.
  *
  * Endpoint:
- *   GET /api/point_value/getValue/{xid}.json
+ *   GET /api/point_value/getValue/{xid}   (Scada-LTS ≥ 2.8, no .json suffix)
  *   Cookie: JSESSIONID=...
  *
  * Error-handling contract:
@@ -62,7 +62,7 @@ export class DataPointPoller {
   }
 
   private async pollOne(dp: DataPoint): Promise<void> {
-    const url = `${this.baseUrl}/api/point_value/getValue/${encodeURIComponent(dp.xid)}.json`;
+    const url = `${this.baseUrl}/api/point_value/getValue/${encodeURIComponent(dp.xid)}`;
     try {
       let res = await fetch(url, {
         headers: { Cookie: this.auth.getSessionCookie() },

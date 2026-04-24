@@ -3,11 +3,11 @@
  * Scada-LTS REST API.
  *
  * Auth flow:
- *   GET /api/auth/{username}.json?password={password}
+ *   POST /api/auth/{username}/{password}   (Scada-LTS ≥ 2.8)
  *   → JSESSIONID cookie stored and forwarded on all subsequent requests.
  *
  * Keepalive:
- *   GET /api/dataPoint/getAll?limit=1  (every keepaliveIntervalMs)
+ *   GET /api/datapoint/getAll?limit=1  (every keepaliveIntervalMs)
  *   Pings the session to prevent expiry without triggering a full re-login.
  *   On 401 keepalive response, falls back to full re-login.
  *
@@ -36,8 +36,8 @@ export class ScadaLTSAuthClient {
    * startup failure per the error-handling contract.
    */
   async login(): Promise<void> {
-    const url = `${this.baseUrl}/api/auth/${encodeURIComponent(this.username)}.json?password=${encodeURIComponent(this.password)}`;
-    const res = await fetch(url);
+    const url = `${this.baseUrl}/api/auth/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}`;
+    const res = await fetch(url, { method: "POST" });
     if (!res.ok) {
       throw new Error(`ScadaLTS auth failed: HTTP ${res.status.toString()} ${res.statusText}`);
     }
@@ -72,7 +72,7 @@ export class ScadaLTSAuthClient {
 
   /**
    * Start periodic session keepalive.
-   * Sends a lightweight GET /api/dataPoint/getAll?limit=1 ping on each tick.
+   * Sends a lightweight GET /api/datapoint/getAll?limit=1 ping on each tick.
    * Falls back to full re-login if the ping returns 401.
    */
   startKeepalive(intervalMs: number): void {
@@ -99,7 +99,7 @@ export class ScadaLTSAuthClient {
   async validateXids(xids: string[]): Promise<Set<string>> {
     const missing = new Set<string>();
     try {
-      const url = `${this.baseUrl}/api/dataPoint/getAll`;
+      const url = `${this.baseUrl}/api/datapoint/getAll`;
       const res = await fetch(url, {
         headers: { Cookie: this.sessionCookie },
       });
@@ -123,7 +123,7 @@ export class ScadaLTSAuthClient {
 
   private async ping(): Promise<void> {
     try {
-      const url = `${this.baseUrl}/api/dataPoint/getAll?limit=1`;
+      const url = `${this.baseUrl}/api/datapoint/getAll?limit=1`;
       const res = await fetch(url, {
         headers: { Cookie: this.sessionCookie },
       });
