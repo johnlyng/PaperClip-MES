@@ -10,9 +10,9 @@
 # machineIds must match the UUIDs seeded in infra/compose/init-scripts/01-init-timescaledb.sql
 
 scadalts:
-  baseUrl: http://scadalts:8080
-  username: mes_collector
-  # password is injected at runtime via SCADALTS_PASSWORD env var
+  baseUrl: http://scadalts:8080/Scada-LTS
+  username: admin
+  # password is injected at runtime via SCADALTS_PASSWORD env var (default: admin)
   password: ""
   # Re-authenticate every 25 minutes to keep session alive (session TTL: 30 min)
   keepaliveIntervalMs: 60000

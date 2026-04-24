@@ -13,6 +13,8 @@ version: "3.9"
 #   api                 — MES API (Fastify v5, port 3000)
 #   web                 — React 19 frontend via nginx (port 8080)
 #   opcua-collector     — OPC-UA → MQTT bridge (dev: synthetic telemetry mode)
+#   scadalts-db         — MySQL 8 backing store for Scada-LTS (internal only)
+#   scadalts            — Scada-LTS SCADA server (port 8888 → Tomcat 8080)
 #   scadalts-collector  — Polls Scada-LTS REST API and publishes telemetry to EMQX (ADR-001 Decision 7)
 
 services:
@@ -116,6 +118,40 @@ services:
       emqx:
         condition: service_healthy
 
+  scadalts-db:
+    image: mysql:5.7
+    container_name: mes-scadalts-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: scadalts
+    volumes:
+      - scadalts_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  scadalts:
+    image: scadalts/scadalts:release-2.8.1
+    container_name: mes-scadalts
+    restart: unless-stopped
+    depends_on:
+      scadalts-db:
+        condition: service_healthy
+    ports:
+      - "8888:8080"    # Scada-LTS UI — default login: admin / admin
+    volumes:
+      - ./scadalts-context.xml:/usr/local/tomcat/webapps/Scada-LTS/META-INF/context.xml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf 'http://localhost:8080/Scada-LTS/api/auth/admin.json?password=admin' -o /dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
   scadalts-collector:
     build:
       context: ../..
@@ -127,12 +163,14 @@ services:
     volumes:
       - ./config/datapoints.yml:/app/config/datapoints.yml:ro
     environment:
-      - SCADALTS_BASE_URL=${SCADALTS_BASE_URL:-http://scadalts:8080}
-      - SCADALTS_PASSWORD=${SCADALTS_PASSWORD:-}
+      - SCADALTS_BASE_URL=${SCADALTS_BASE_URL:-http://scadalts:8080/Scada-LTS}
+      - SCADALTS_PASSWORD=${SCADALTS_PASSWORD:-admin}
       - MQTT_URL=${MQTT_URL:-mqtt://emqx:1883}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     depends_on:
       emqx:
+        condition: service_healthy
+      scadalts:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/health || exit 1"]
@@ -145,3 +183,4 @@ volumes:
   postgres_data:
   emqx_data:
   emqx_log:
+  scadalts_db_data:
