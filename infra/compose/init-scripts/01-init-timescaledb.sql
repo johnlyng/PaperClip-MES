@@ -68,7 +68,11 @@ CREATE TABLE IF NOT EXISTS work_orders (
 INSERT INTO machines (id, name, status, line_id) VALUES
   ('00000000-0000-0000-0000-000000000001', 'CNC Lathe Alpha',       'running',      '00000000-0000-0000-0001-000000000001'),
   ('00000000-0000-0000-0000-000000000002', 'Milling Station Beta',  'idle',         '00000000-0000-0000-0001-000000000001'),
-  ('00000000-0000-0000-0000-000000000003', 'Assembly Robot Gamma',  'fault',        '00000000-0000-0000-0001-000000000002')
+  ('00000000-0000-0000-0000-000000000003', 'Assembly Robot Gamma',  'fault',        '00000000-0000-0000-0001-000000000002'),
+  ('00000000-0000-0000-0000-000000000004', 'Extruder Line',         'running',      '00000000-0000-0000-0001-000000000003'),
+  ('00000000-0000-0000-0000-000000000005', 'Welding Station',       'running',      '00000000-0000-0000-0001-000000000003'),
+  ('00000000-0000-0000-0000-000000000006', 'Cooling Circuit',       'running',      '00000000-0000-0000-0001-000000000003'),
+  ('00000000-0000-0000-0000-000000000007', 'Utilities',             'running',      '00000000-0000-0000-0001-000000000003')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO work_orders (id, work_order_number, title, product_id, quantity, unit, scheduled_start, scheduled_end, status, machine_id) VALUES

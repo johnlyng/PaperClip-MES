@@ -6,8 +6,7 @@
 # Each entry maps a Scada-LTS XID to a machineId + metric for MQTT publishing.
 # XIDs are defined in the Scada-LTS admin UI under Data Sources → Data Points.
 #
-# Replace placeholder XIDs with real values from your Scada-LTS instance.
-# machineIds must match the UUIDs seeded in infra/compose/init-scripts/01-init-timescaledb.sql
+# machineIds match the UUIDs seeded in infra/compose/init-scripts/01-init-timescaledb.sql
 
 scadalts:
   baseUrl: http://scadalts:8080/Scada-LTS
@@ -15,33 +14,132 @@ scadalts:
   # password is injected at runtime via SCADALTS_PASSWORD env var (default: admin)
   password: ""
   # Re-authenticate every 25 minutes to keep session alive (session TTL: 30 min)
-  keepaliveIntervalMs: 60000
+  keepaliveIntervalMs: 1500000
 
 mqtt:
   url: mqtt://emqx:1883
 
 datapoints:
-  - xid: DP_LATHE_ALPHA_SPINDLE_SPEED
-    machineId: "00000000-0000-0000-0000-000000000001"
-    metric: spindleSpeed
+  # ── DS_EXTRUDER_LINE → machineId 00000000-0000-0000-0000-000000000004 ──────
+  - xid: DP_EXT_TEMP_ZONE1
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: tempZone1
     intervalMs: 5000
 
-  - xid: DP_LATHE_ALPHA_FEED_RATE
-    machineId: "00000000-0000-0000-0000-000000000001"
-    metric: feedRate
+  - xid: DP_EXT_TEMP_ZONE2
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: tempZone2
     intervalMs: 5000
 
-  - xid: DP_LATHE_ALPHA_TEMPERATURE
-    machineId: "00000000-0000-0000-0000-000000000001"
+  - xid: DP_EXT_TEMP_ZONE3
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: tempZone3
+    intervalMs: 5000
+
+  - xid: DP_EXT_SCREW_SPEED
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: screwSpeed
+    intervalMs: 5000
+
+  - xid: DP_EXT_LINE_SPEED
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: lineSpeed
+    intervalMs: 5000
+
+  - xid: DP_EXT_MELT_PRESSURE
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: meltPressure
+    intervalMs: 5000
+
+  - xid: DP_EXT_COOLING_WATER_TEMP
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: coolingWaterTemp
+    intervalMs: 10000
+
+  - xid: DP_EXT_PRODUCTION_COUNTER
+    machineId: "00000000-0000-0000-0000-000000000004"
+    metric: productionCounter
+    intervalMs: 60000
+
+  # ── DS_WELDING_STATION → machineId 00000000-0000-0000-0000-000000000005 ───
+  - xid: DP_WELD_TEMPERATURE
+    machineId: "00000000-0000-0000-0000-000000000005"
     metric: temperature
-    intervalMs: 10000
-
-  - xid: DP_MILLING_BETA_SPINDLE_SPEED
-    machineId: "00000000-0000-0000-0000-000000000002"
-    metric: spindleSpeed
     intervalMs: 5000
 
-  - xid: DP_MILLING_BETA_LOAD
-    machineId: "00000000-0000-0000-0000-000000000002"
-    metric: load
+  - xid: DP_WELD_CLAMP_PRESSURE
+    machineId: "00000000-0000-0000-0000-000000000005"
+    metric: clampPressure
+    intervalMs: 5000
+
+  - xid: DP_WELD_CYCLE_TIME
+    machineId: "00000000-0000-0000-0000-000000000005"
+    metric: cycleTime
+    intervalMs: 5000
+
+  - xid: DP_WELD_WELDS_TODAY
+    machineId: "00000000-0000-0000-0000-000000000005"
+    metric: weldsToday
+    intervalMs: 5000
+
+  # ── DS_COOLING_CIRCUIT → machineId 00000000-0000-0000-0000-000000000006 ──
+  - xid: DP_COOL_PUMP1_FLOW
+    machineId: "00000000-0000-0000-0000-000000000006"
+    metric: pump1Flow
+    intervalMs: 5000
+
+  - xid: DP_COOL_PUMP1_PRESSURE
+    machineId: "00000000-0000-0000-0000-000000000006"
+    metric: pump1Pressure
+    intervalMs: 5000
+
+  - xid: DP_COOL_PUMP2_FLOW
+    machineId: "00000000-0000-0000-0000-000000000006"
+    metric: pump2Flow
+    intervalMs: 5000
+
+  - xid: DP_COOL_TANK_LEVEL
+    machineId: "00000000-0000-0000-0000-000000000006"
+    metric: tankLevel
     intervalMs: 10000
+
+  - xid: DP_COOL_TEMP_IN
+    machineId: "00000000-0000-0000-0000-000000000006"
+    metric: tempIn
+    intervalMs: 5000
+
+  - xid: DP_COOL_TEMP_OUT
+    machineId: "00000000-0000-0000-0000-000000000006"
+    metric: tempOut
+    intervalMs: 5000
+
+  # ── DS_UTILITIES → machineId 00000000-0000-0000-0000-000000000007 ─────────
+  - xid: DP_UTIL_POWER
+    machineId: "00000000-0000-0000-0000-000000000007"
+    metric: power
+    intervalMs: 10000
+
+  - xid: DP_UTIL_COMPRESSOR_PRESSURE
+    machineId: "00000000-0000-0000-0000-000000000007"
+    metric: compressorPressure
+    intervalMs: 10000
+
+  - xid: DP_UTIL_COMPRESSOR_TEMP
+    machineId: "00000000-0000-0000-0000-000000000007"
+    metric: compressorTemp
+    intervalMs: 10000
+
+  - xid: DP_UTIL_HALL_TEMP
+    machineId: "00000000-0000-0000-0000-000000000007"
+    metric: hallTemp
+    intervalMs: 30000
+
+  - xid: DP_UTIL_HALL_HUMIDITY
+    machineId: "00000000-0000-0000-0000-000000000007"
+    metric: hallHumidity
+    intervalMs: 30000
+
+  - xid: DP_UTIL_VENT_FAN_SPEED
+    machineId: "00000000-0000-0000-0000-000000000007"
+    metric: ventFanSpeed
+    intervalMs: 5000
