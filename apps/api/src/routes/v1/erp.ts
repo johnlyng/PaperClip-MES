@@ -105,10 +105,11 @@ export default async function erpRoutes(
     const syncedOrders: WorkOrder[] = [];
 
     for (const erpOrder of erpOrders) {
-      // Dedup by erpReference — don't create a duplicate WO for the same SAP order
-      const exists = workOrderStore.some(
-        (wo) => wo.erpReference === erpOrder.erpReference
-      );
+      // Dedup by erpReference — don't create a duplicate WO for the same SAP order.
+      // Guard: skip dedup when erpReference is absent; undefined === undefined is a false positive.
+      const exists =
+        erpOrder.erpReference != null &&
+        workOrderStore.some((wo) => wo.erpReference === erpOrder.erpReference);
       if (exists) {
         skipped++;
         continue;
@@ -118,6 +119,8 @@ export default async function erpRoutes(
       const wo: WorkOrder = {
         ...erpOrder,
         id: `erp-${erpOrder.workOrderNumber}-${Date.now()}`,
+        // Force draft — ERP orders enter MES in draft state; supervisors release them.
+        status: "draft",
         createdAt: now,
         updatedAt: now,
       };
