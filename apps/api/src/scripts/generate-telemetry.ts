@@ -14,8 +14,10 @@
  *   # Custom MQTT broker and interval:
  *   MQTT_URL=mqtt://emqx:1883 tsx src/scripts/generate-telemetry.ts --interval-ms 500
  *
- * Topic published:
- *   mes/telemetry/<machineId>/<metric>
+ * Topic published (canonical MqttTopics.machineTelemetry pattern):
+ *   mes/<machineId>/telemetry
+ *
+ * One message per metric per interval; the metric name is in the payload.
  *
  * Payload (JSON, MqttTelemetryPayload shape):
  *   { machineId, metric, value, ts, tags }
@@ -184,7 +186,7 @@ function publish(
     ts: new Date().toISOString(),
     tags,
   };
-  const topic = `mes/telemetry/${machineId}/${metric}`;
+  const topic = `mes/${machineId}/telemetry`;
   client.publish(topic, JSON.stringify(payload), { qos: 1 });
 }
 

@@ -31,7 +31,15 @@ interface ServiceLogger {
   debug(obj: object | string, msg?: string): void;
 }
 
-const TELEMETRY_TOPIC = "mes/telemetry/#";
+/**
+ * Subscribes to the canonical per-machine telemetry topic published by
+ * scadalts-collector and any MqttTopics.machineTelemetry() producers:
+ *   mes/<machineId>/telemetry
+ *
+ * The MQTT single-level wildcard `+` matches exactly one segment, so this
+ * captures all machines without also consuming `mes/…/status` messages.
+ */
+const TELEMETRY_TOPIC = "mes/+/telemetry";
 
 /** Number of messages to batch before flushing to DB */
 const BATCH_SIZE = 50;
