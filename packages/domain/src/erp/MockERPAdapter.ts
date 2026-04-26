@@ -49,6 +49,28 @@ export class MockERPAdapter implements IERPAdapter {
         createdAt: now,
         updatedAt: now,
       },
+      // ── Discrete manufacturing fixture (GST-29 scenario) ───────────────────
+      // Represents a SAP Production Order in CRTD (Created) status — not yet
+      // released to the floor. Scheduled for 2026-05-01, within the 30-day
+      // lookahead window of /api/v1/erp/sync.
+      {
+        id: "wo-discrete-001",
+        workOrderNumber: "WO-DISCRETE-001",
+        title: "100-unit aluminium coupling run",
+        productId: "ALU-COUPLING-M12",
+        quantity: 100,
+        unit: "pcs",
+        priority: 1,
+        scheduledStart: new Date("2026-05-01T06:00:00.000Z"),
+        scheduledEnd: new Date("2026-05-01T14:00:00.000Z"),
+        // "draft" = SAP CRTD status — supervisor must release before operators can start
+        status: "draft",
+        machineId: "machine-cnc-001",
+        bomId: "BOM-ALU-COUPLING-M12-v1",
+        erpReference: "SAP-PROD-ORDER-100001",
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
 
     return fixtures.filter(
@@ -71,6 +93,12 @@ export class MockERPAdapter implements IERPAdapter {
       "bom-widget-beta-v2": [
         { itemNumber: "MAT-004", description: "Aluminium Housing", quantity: 1, unit: "pcs", materialId: "mat-004" },
         { itemNumber: "MAT-005", description: "Circuit Board PCB-7", quantity: 1, unit: "pcs", materialId: "mat-005" },
+      ],
+      // Discrete manufacturing BOM (GST-29 scenario)
+      "BOM-ALU-COUPLING-M12-v1": [
+        { itemNumber: "DC-RM-001", description: "Aluminium Rod 25mm diameter", quantity: 0.12, unit: "m", materialId: "mat-alu-rod-25mm" },
+        { itemNumber: "DC-RM-002", description: "O-Ring Seal 12mm", quantity: 2, unit: "pcs", materialId: "mat-seal-o-ring-12" },
+        { itemNumber: "DC-RM-003", description: "Hex Bolt M6×20mm", quantity: 4, unit: "pcs", materialId: "mat-bolt-m6-20mm" },
       ],
     };
     return fixtures[bomId] ?? [];
