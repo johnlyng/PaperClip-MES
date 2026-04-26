@@ -57,20 +57,48 @@ mqttClient.on("error", (err) => {
 if (opcuaEndpoints.length === 0) {
   log.info("No OPC-UA endpoints configured — running in synthetic telemetry mode (dev)");
 
-  const MACHINE_IDS = ["machine-mock-001", "machine-mock-002"];
+  // Discrete-manufacturing machines (mock)
+  const DISCRETE_MACHINE_IDS = ["machine-mock-001", "machine-mock-002"];
+  // Process-manufacturing machines — required by E2E spec (Step 9: OEE for machine-reactor-001)
+  const PROCESS_MACHINE_IDS = ["machine-reactor-001", "machine-reactor-002"];
 
   setInterval(() => {
-    for (const machineId of MACHINE_IDS) {
+    const ts = new Date().toISOString();
+
+    // Discrete machines: publish spindleSpeed telemetry
+    for (const machineId of DISCRETE_MACHINE_IDS) {
       const payload: MqttTelemetryPayload = {
         machineId,
         metric: "spindleSpeed",
         value: 1000 + Math.random() * 500,
-        ts: new Date().toISOString(),
+        ts,
         tags: { unit: "rpm", source: "synthetic" },
       };
       const topic = MqttTopics.machineTelemetry(machineId);
       mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
       log.debug({ topic, payload }, "Published synthetic telemetry");
+    }
+
+    // Process machines: publish OEE-relevant metrics (status, output_count, good_count)
+    // so the oee_1min/oee_1hour continuous aggregates have data for E2E Step 9.
+    for (const machineId of PROCESS_MACHINE_IDS) {
+      const metrics: Array<{ metric: string; value: number; unit: string }> = [
+        { metric: "status",       value: 1.0,                     unit: "binary" },   // 1.0 = running
+        { metric: "output_count", value: Math.floor(Math.random() * 3),   unit: "units"  },
+        { metric: "good_count",   value: Math.floor(Math.random() * 3),   unit: "units"  },
+      ];
+      for (const { metric, value, unit } of metrics) {
+        const payload: MqttTelemetryPayload = {
+          machineId,
+          metric,
+          value,
+          ts,
+          tags: { unit, source: "synthetic" },
+        };
+        const topic = MqttTopics.machineTelemetry(machineId);
+        mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+        log.debug({ topic, payload }, "Published synthetic OEE telemetry");
+      }
     }
   }, 5_000);
 } else {
