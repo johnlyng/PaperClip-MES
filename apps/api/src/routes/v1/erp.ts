@@ -14,6 +14,10 @@ import type { WorkOrder, ProductionResult, UserRole } from "@mes/types";
  *   Posts completion data back to the ERP when a work order is closed.
  *   Requires JWT + role in {supervisor, engineer, admin} — confirmation is
  *   a financial/audit action in discrete manufacturing.
+ *
+ * GET /api/v1/erp/health
+ *   Lightweight connectivity check — delegates to IERPAdapter.healthCheck().
+ *   Used by the E2E gate (Step 8) and monitoring dashboards.
  */
 
 /** Roles permitted to post a production confirmation back to the ERP */
@@ -199,7 +203,7 @@ export default async function erpRoutes(
       });
     }
 
-    // BLOCKER 4 fix: validate quantities against the work order's planned quantity
+    // Validate quantities against the work order's planned quantity
     const { actualQuantity, scrapQuantity } = request.body;
     if (actualQuantity < 0 || scrapQuantity < 0) {
       return reply.status(400).send({
@@ -241,5 +245,32 @@ export default async function erpRoutes(
 
     app.log.info({ workOrderId, erpReference: wo.erpReference }, "ERP confirmation posted");
     return reply.send({ workOrderId, confirmed: true });
+  });
+
+  // ─── GET /api/v1/erp/health ─────────────────────────────────────────────────
+  // Delegates to IERPAdapter.healthCheck() — used by E2E gate Step 8 and monitoring.
+
+  app.get("/erp/health", {
+    schema: {
+      tags: ["ERP"],
+      summary: "ERP adapter connectivity check",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            connected: { type: "boolean" },
+            latency: { type: "number" },
+          },
+        },
+        503: { type: "object" },
+      },
+    },
+  }, async (_request, reply) => {
+    try {
+      const health = await erpAdapter.healthCheck();
+      return health;
+    } catch {
+      return reply.status(503).send({ connected: false, latency: -1 });
+    }
   });
 }

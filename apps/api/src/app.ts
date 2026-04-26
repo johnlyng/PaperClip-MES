@@ -101,6 +101,7 @@ export function buildApp() {
   app.get("/health", async () => ({ status: "ok", ts: new Date().toISOString() }));
 
   // v1 routes registered as async plugins
+  app.register(import("./routes/v1/auth.js"), { prefix: "/api/v1" });
   app.register(import("./routes/v1/work-orders.js"), { prefix: "/api/v1" });
   app.register(import("./routes/v1/machines.js"), { prefix: "/api/v1" });
   app.register(import("./routes/v1/ws.js"), { prefix: "/api/v1" });

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { WorkOrderStateMachine } from "@mes/domain";
-import type { WorkOrder } from "@mes/types";
+import type { WorkOrder, WorkOrderStatus } from "@mes/types";
 import { workOrderStore as store } from "../../stores/work-orders.js";
 
 export default async function workOrderRoutes(app: FastifyInstance) {
@@ -35,8 +35,21 @@ export default async function workOrderRoutes(app: FastifyInstance) {
     },
   }, async (request, reply) => {
     const now = new Date();
+    // Cast to Partial so TypeScript doesn't flag duplicate keys from the spread.
+    // Caller may omit required fields (e.g. process WOs use scheduledQuantity /
+    // targetMachineId aliases), so we supply safe defaults before the spread.
+    const body = request.body as Partial<WorkOrder>;
     const wo: WorkOrder = {
-      ...request.body,
+      status: "released" as WorkOrderStatus,
+      workOrderNumber: `WO-${Date.now()}`,
+      title: "Work Order",
+      productId: "unknown",
+      quantity: 0,
+      unit: "pcs",
+      priority: 0,
+      scheduledStart: now,
+      scheduledEnd: now,
+      ...body,
       id: `wo-${Date.now()}`,
       createdAt: now,
       updatedAt: now,
