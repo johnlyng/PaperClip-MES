@@ -14,7 +14,7 @@
     "@mes/types": "workspace:*",
     "node-opcua": "^2.132.0",
     "mqtt": "^5.10.1",
-    "pino": "^9.6.0"
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@types/node": "*",
