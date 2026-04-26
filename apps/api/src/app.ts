@@ -6,6 +6,8 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { MqttSubscriber } from "./services/mqtt-subscriber.js";
 import { createDb } from "@mes/db";
+import { MockERPAdapter, SAPAdapter, sapConfigFromEnv } from "@mes/domain/erp";
+import { workOrderStore } from "./stores/work-orders.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -79,6 +81,21 @@ export function buildApp() {
     }
   });
 
+  // ─── ERP Adapter ───────────────────────────────────────────────────────────
+  // Select SAPAdapter when SAP_BASE_URL is set, fall back to MockERPAdapter.
+  // ERP_ADAPTER=mock forces the mock adapter even if SAP_BASE_URL is present.
+
+  const erpAdapterType = process.env["ERP_ADAPTER"] ?? "auto";
+  const erpAdapter =
+    erpAdapterType === "mock" || !process.env["SAP_BASE_URL"]
+      ? new MockERPAdapter()
+      : new SAPAdapter(sapConfigFromEnv());
+
+  app.log.info(
+    { adapterType: erpAdapter instanceof SAPAdapter ? "sap" : "mock" },
+    "ERP adapter selected"
+  );
+
   // ─── Routes ────────────────────────────────────────────────────────────────
 
   app.get("/health", async () => ({ status: "ok", ts: new Date().toISOString() }));
@@ -87,6 +104,11 @@ export function buildApp() {
   app.register(import("./routes/v1/work-orders.js"), { prefix: "/api/v1" });
   app.register(import("./routes/v1/machines.js"), { prefix: "/api/v1" });
   app.register(import("./routes/v1/ws.js"), { prefix: "/api/v1" });
+  app.register(import("./routes/v1/erp.js"), {
+    prefix: "/api/v1",
+    erpAdapter,
+    workOrderStore,
+  });
 
   return app;
 }

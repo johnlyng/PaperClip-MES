@@ -1,10 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { WorkOrderStateMachine } from "@mes/domain";
 import type { WorkOrder } from "@mes/types";
-import { WORK_ORDERS } from "@mes/test-fixtures";
-
-// Stub in-memory store — replace with Drizzle + PostgreSQL in GST-8
-let store: WorkOrder[] = [...WORK_ORDERS];
+import { workOrderStore as store } from "../../stores/work-orders.js";
 
 export default async function workOrderRoutes(app: FastifyInstance) {
   // GET /api/v1/work-orders
