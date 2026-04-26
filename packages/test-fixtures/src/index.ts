@@ -48,6 +48,31 @@ export const MACHINES: Machine[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  // Process-manufacturing machines (board-confirmed priority, matches telemetry generator)
+  {
+    id: "machine-reactor-001",
+    name: "Batch Reactor R-101",
+    status: "running",
+    lineId: "line-process-001",
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: "machine-reactor-002",
+    name: "Continuous Mixer CM-201",
+    status: "idle",
+    lineId: "line-process-001",
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: "machine-dryer-001",
+    name: "Spray Dryer SD-301",
+    status: "running",
+    lineId: "line-process-002",
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];
 
 // ─── Work Orders ─────────────────────────────────────────────────────────────

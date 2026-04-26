@@ -81,7 +81,7 @@ export class OEEQueryService {
         output_count,
         good_count
       FROM ${sql.raw(view)}
-      WHERE machine_id = ${params.machineId}::uuid
+      WHERE machine_id = ${params.machineId}
         AND bucket >= ${params.from.toISOString()}::timestamptz
         AND bucket <  ${params.to.toISOString()}::timestamptz
       ORDER BY bucket ASC
@@ -152,7 +152,7 @@ export class OEEQueryService {
         SUM(good_count)       AS total_good,
         COUNT(*)              AS bucket_count
       FROM oee_1hour
-      WHERE machine_id = ${machineId}::uuid
+      WHERE machine_id = ${machineId}
         AND bucket >= ${from.toISOString()}::timestamptz
         AND bucket <  ${to.toISOString()}::timestamptz
     `);

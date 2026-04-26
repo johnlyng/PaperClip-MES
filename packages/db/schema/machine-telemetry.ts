@@ -19,7 +19,6 @@
 
 import {
   pgTable,
-  uuid,
   text,
   doublePrecision,
   timestamp,
@@ -33,7 +32,7 @@ export const machineTelemetry = pgTable(
   "machine_telemetry",
   {
     ts: timestamp("ts", { withTimezone: true }).notNull(),
-    machineId: uuid("machine_id").notNull(),
+    machineId: text("machine_id").notNull(), // human-readable IDs (e.g. machine-mock-001)
     metric: text("metric").notNull(),
     value: doublePrecision("value"),
     tags: jsonb("tags"),

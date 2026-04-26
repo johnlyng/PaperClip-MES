@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 CREATE TABLE IF NOT EXISTS machine_telemetry (
   ts         TIMESTAMPTZ      NOT NULL,
-  machine_id UUID             NOT NULL,
+  machine_id TEXT             NOT NULL,  -- human-readable IDs (e.g. machine-mock-001)
   metric     TEXT             NOT NULL,
   value      DOUBLE PRECISION,
   tags       JSONB
