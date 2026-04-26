@@ -97,8 +97,20 @@ interface OAuthTokenResponse {
 /** Injectable fetch-like function — allows tests to substitute a mock */
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
-/** Statuses that are safe to retry (server-side transient) */
-const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+/**
+ * Status codes safe to retry for idempotent reads (GET/HEAD).
+ * 500 is included because a GET cannot have side-effects.
+ */
+const RETRYABLE_GET_CODES = new Set([429, 500, 502, 503, 504]);
+
+/**
+ * Status codes safe to retry for non-idempotent writes (POST/PATCH/DELETE).
+ * 500 is deliberately excluded: SAP may have committed the record and failed
+ * only on the response path. Retrying a POST confirmation would create a
+ * duplicate production confirmation, corrupting the discrete-manufacturing
+ * audit trail (flagged in GST-27 Staff Engineer re-review).
+ */
+const RETRYABLE_POST_CODES = new Set([429, 502, 503, 504]);
 
 // ─── Adapter ─────────────────────────────────────────────────────────────────
 
@@ -295,7 +307,7 @@ export class SAPAdapter implements IERPAdapter {
         Accept: "application/json",
         "OData-Version": "4.0",
       },
-    });
+    }, RETRYABLE_GET_CODES);
     if (!response.ok) {
       throw new Error(
         `SAP GET ${url} failed: ${response.status} ${response.statusText}`
@@ -315,7 +327,7 @@ export class SAPAdapter implements IERPAdapter {
         "OData-Version": "4.0",
       },
       body: JSON.stringify(body),
-    });
+    }, RETRYABLE_POST_CODES);
     if (!response.ok) {
       throw new Error(
         `SAP POST ${url} failed: ${response.status} ${response.statusText}`
@@ -329,12 +341,16 @@ export class SAPAdapter implements IERPAdapter {
    * Delay formula: min(2^attempt * retryBaseDelayMs, 10s) + [0..retryBaseDelayMs] jitter.
    * Set retryBaseDelayMs=0 in tests to avoid slow suites.
    */
-  private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  private async fetchWithRetry(
+    url: string,
+    init: RequestInit,
+    retryableCodes: ReadonlySet<number>
+  ): Promise<Response> {
     let lastError: Error | null = null;
     for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
       try {
         const response = await this.fetchWithTimeout(url, init);
-        if (!RETRYABLE_STATUS_CODES.has(response.status)) {
+        if (!retryableCodes.has(response.status)) {
           // Success or non-retryable client error — return immediately
           return response;
         }

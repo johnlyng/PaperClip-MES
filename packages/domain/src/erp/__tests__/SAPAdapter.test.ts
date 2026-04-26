@@ -523,6 +523,103 @@ describe("SAPAdapter — retry with exponential backoff (BLOCKER 3)", () => {
   });
 });
 
+// ─── NEW BLOCKER: POST 500 must not retry (non-idempotent write) ──────────────
+
+describe("SAPAdapter — POST 500 no-retry (new blocker from re-review)", () => {
+  it("does NOT retry pushProductionResult on SAP 500 (would duplicate confirmation)", async () => {
+    let postCallCount = 0;
+    const mockFetch: FetchFn = async (url: string, init?: RequestInit) => {
+      if (String(url).includes("/oauth2/token")) {
+        return jsonResponse(TOKEN_RESPONSE);
+      }
+      if (init?.method === "POST" && String(url).includes("/ProdnOrdConf2")) {
+        postCallCount++;
+        return new Response(null, { status: 500, statusText: "Internal Server Error" });
+      }
+      return makeMockFetch()(url, init);
+    };
+
+    const adapter = new SAPAdapter(
+      { ...BASE_CONFIG, maxRetries: 3, retryBaseDelayMs: 0 },
+      mockFetch
+    );
+
+    await expect(
+      adapter.pushProductionResult({
+        workOrderId: "1000001",
+        machineId: "PLANT-1",
+        actualQuantity: 490,
+        scrapQuantity: 10,
+        completedAt: new Date(),
+      })
+    ).rejects.toThrow("SAP POST");
+
+    // 500 must NOT trigger retries for POST — exactly 1 attempt
+    expect(postCallCount).toBe(1);
+  });
+
+  it("DOES retry pushProductionResult on SAP 503 (availability failure, safe to retry)", async () => {
+    let postCallCount = 0;
+    const mockFetch: FetchFn = async (url: string, init?: RequestInit) => {
+      if (String(url).includes("/oauth2/token")) {
+        return jsonResponse(TOKEN_RESPONSE);
+      }
+      if (init?.method === "POST" && String(url).includes("/ProdnOrdConf2")) {
+        postCallCount++;
+        if (postCallCount === 1) {
+          return new Response(null, { status: 503, statusText: "Service Unavailable" });
+        }
+        return jsonResponse({ value: [] }, 201);
+      }
+      return makeMockFetch()(url, init);
+    };
+
+    const adapter = new SAPAdapter(
+      { ...BASE_CONFIG, maxRetries: 3, retryBaseDelayMs: 0 },
+      mockFetch
+    );
+
+    await expect(
+      adapter.pushProductionResult({
+        workOrderId: "1000001",
+        machineId: "PLANT-1",
+        actualQuantity: 490,
+        scrapQuantity: 10,
+        completedAt: new Date(),
+      })
+    ).resolves.toBeUndefined();
+
+    expect(postCallCount).toBe(2);
+  });
+
+  it("GET 500 is retried (reads are idempotent)", async () => {
+    let getCallCount = 0;
+    const mockFetch: FetchFn = async (url: string, init?: RequestInit) => {
+      if (String(url).includes("/oauth2/token")) {
+        return jsonResponse(TOKEN_RESPONSE);
+      }
+      getCallCount++;
+      if (getCallCount === 1) {
+        return new Response(null, { status: 500, statusText: "Internal Server Error" });
+      }
+      return makeMockFetch()(url, init);
+    };
+
+    const adapter = new SAPAdapter(
+      { ...BASE_CONFIG, maxRetries: 3, retryBaseDelayMs: 0 },
+      mockFetch
+    );
+
+    const orders = await adapter.getWorkOrdersByDate(
+      new Date("2026-04-01"),
+      new Date("2026-04-01")
+    );
+
+    expect(getCallCount).toBeGreaterThanOrEqual(2);
+    expect(orders.length).toBeGreaterThan(0);
+  });
+});
+
 // ─── Non-blocking: PCNF maps to in_progress ───────────────────────────────────
 
 describe("SAPAdapter — PCNF status mapping", () => {

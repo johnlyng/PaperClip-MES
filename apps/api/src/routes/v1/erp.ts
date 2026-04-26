@@ -20,6 +20,16 @@ import type { WorkOrder, ProductionResult, UserRole } from "@mes/types";
  *   Used by the E2E gate (Step 8) and monitoring dashboards.
  */
 
+/** Shared error response schema — ensures fast-json-stringify serializes the body fields */
+const ERROR_SCHEMA = {
+  type: "object",
+  properties: {
+    statusCode: { type: "number" },
+    error: { type: "string" },
+    message: { type: "string" },
+  },
+} as const;
+
 /** Roles permitted to post a production confirmation back to the ERP */
 const CONFIRM_ALLOWED_ROLES: UserRole[] = ["supervisor", "engineer", "admin"];
 
@@ -81,7 +91,7 @@ export default async function erpRoutes(
             workOrders: { type: "array" },
           },
         },
-        502: { type: "object" },
+        502: ERROR_SCHEMA,
       },
     },
   }, async (_request, reply) => {
@@ -189,12 +199,12 @@ export default async function erpRoutes(
             confirmed: { type: "boolean" },
           },
         },
-        400: { type: "object" },
-        401: { type: "object" },
-        403: { type: "object" },
-        404: { type: "object" },
-        422: { type: "object" },
-        502: { type: "object" },
+        400: ERROR_SCHEMA,
+        401: ERROR_SCHEMA,
+        403: ERROR_SCHEMA,
+        404: ERROR_SCHEMA,
+        422: ERROR_SCHEMA,
+        502: ERROR_SCHEMA,
       },
     },
   }, async (request, reply) => {
@@ -276,7 +286,10 @@ export default async function erpRoutes(
             latency: { type: "number" },
           },
         },
-        503: { type: "object" },
+        503: {
+          type: "object",
+          properties: { connected: { type: "boolean" }, latency: { type: "number" } },
+        },
       },
     },
   }, async (_request, reply) => {
