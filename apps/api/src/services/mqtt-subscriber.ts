@@ -60,6 +60,7 @@ export class MqttSubscriber {
   private client: MqttClient | null = null;
   private batch: TelemetryInsertRow[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private flushing = false;
 
   constructor(
     private readonly db: Db,
@@ -122,11 +123,17 @@ export class MqttSubscriber {
       return;
     }
 
+    const value = typeof payload.value === "number" ? payload.value : Number(payload.value);
+    if (!Number.isFinite(value)) {
+      this.logger.warn({ payload }, "Non-finite telemetry value, skipping");
+      return;
+    }
+
     this.batch.push({
       ts: payload.ts ? new Date(payload.ts) : new Date(),
       machineId: payload.machineId,
       metric: payload.metric,
-      value: typeof payload.value === "number" ? payload.value : Number(payload.value),
+      value,
       tags: payload.tags ?? null,
     });
 
@@ -138,18 +145,23 @@ export class MqttSubscriber {
   }
 
   private async flush(): Promise<void> {
-    if (this.batch.length === 0) return;
-
-    const rows = this.batch.splice(0, this.batch.length);
+    if (this.flushing || this.batch.length === 0) return;
+    this.flushing = true;
+    const rows = this.batch.splice(0);
     try {
+      // onConflictDoNothing() handles QoS-1 redelivery deduplication via the
+      // unique constraint uq_telemetry_event (machine_id, ts, metric).
       // Cast to any to bridge the dist-compiled schema types with the runtime insert
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await this.db.insert(machineTelemetry).values(rows as any);
+      await this.db.insert(machineTelemetry).values(rows as any).onConflictDoNothing();
       this.logger.debug({ count: rows.length }, "Flushed telemetry batch to DB");
     } catch (err) {
       this.logger.error({ err, count: rows.length }, "Failed to insert telemetry batch");
-      // Re-queue failed rows at the front so we don't lose data
+      // Re-queue failed rows so we don't lose data on transient DB errors.
+      // TimescaleDB handles unordered inserts correctly.
       this.batch.unshift(...rows);
+    } finally {
+      this.flushing = false;
     }
   }
 

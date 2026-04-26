@@ -25,6 +25,12 @@ SELECT create_hypertable(
   if_not_exists => TRUE
 );
 
+-- Deduplication constraint: QoS-1 MQTT guarantees at-least-once delivery;
+-- the unique constraint prevents duplicate rows from broker reconnect redelivery.
+-- TimescaleDB requires the partition key (ts) in all unique constraints.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_telemetry_event
+  ON machine_telemetry (machine_id, ts, metric);
+
 -- Index for fast per-machine queries
 CREATE INDEX IF NOT EXISTS idx_telemetry_machine_ts
   ON machine_telemetry (machine_id, ts DESC);
