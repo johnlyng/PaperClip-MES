@@ -16,8 +16,12 @@ export interface SAPAdapterConfig {
   // Basic auth (on-prem)
   username?: string;
   password?: string;
-  /** Request timeout in ms (default 10 000) */
+  /** Request timeout in ms per attempt (default 10 000) */
   timeoutMs?: number;
+  /** Max retry attempts for transient failures (default 3) */
+  maxRetries?: number;
+  /** Base delay in ms for exponential backoff (default 500; set to 0 in tests) */
+  retryBaseDelayMs?: number;
 }
 
 /**
@@ -38,6 +42,8 @@ export function sapConfigFromEnv(): SAPAdapterConfig {
     username: process.env["SAP_USERNAME"],
     password: process.env["SAP_PASSWORD"],
     timeoutMs: process.env["SAP_TIMEOUT_MS"] ? Number(process.env["SAP_TIMEOUT_MS"]) : 10_000,
+    maxRetries: process.env["SAP_MAX_RETRIES"] ? Number(process.env["SAP_MAX_RETRIES"]) : 3,
+    retryBaseDelayMs: 500,
   };
 }
 
@@ -91,6 +97,9 @@ interface OAuthTokenResponse {
 /** Injectable fetch-like function — allows tests to substitute a mock */
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
+/** Statuses that are safe to retry (server-side transient) */
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+
 // ─── Adapter ─────────────────────────────────────────────────────────────────
 
 /**
@@ -104,13 +113,20 @@ export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
  *   - Bill of Materials:  API_BILL_OF_MATERIAL_SRV (OData v4)
  *
  * Auth:
- *   - OAuth 2.0 client_credentials (SAP S/4HANA Cloud) — token cached until expiry
+ *   - OAuth 2.0 client_credentials (SAP S/4HANA Cloud) — token cached until expiry,
+ *     single-flight promise prevents parallel token requests during cache miss
  *   - HTTP Basic (SAP S/4HANA on-prem) — enabled via SAP_AUTH_TYPE=basic
+ *
+ * Resilience:
+ *   - Exponential backoff with jitter for 429/5xx responses and network errors
+ *   - Configurable maxRetries (default 3); per-attempt timeout
  */
 export class SAPAdapter implements IERPAdapter {
   private readonly config: Required<SAPAdapterConfig>;
   private readonly fetchFn: FetchFn;
   private tokenCache: TokenCache | null = null;
+  /** Single-flight guard: while a token fetch is in-flight, all callers await the same promise */
+  private tokenInflight: Promise<string> | null = null;
 
   // OData v4 service root paths
   private static readonly PROD_ORDER_SVC =
@@ -119,6 +135,9 @@ export class SAPAdapter implements IERPAdapter {
     "/sap/opu/odata4/sap/api_prod_order_confirmation/srvd_a2x/sap/prod_order_confirmation/0001";
   private static readonly BOM_SVC =
     "/sap/opu/odata4/sap/api_bill_of_material/srvd_a2x/sap/bill_of_material/0001";
+
+  /** Strict allowlist for BOM ID values interpolated into OData filter strings */
+  private static readonly BOM_ID_PATTERN = /^[A-Za-z0-9_\-.]+$/;
 
   constructor(config: SAPAdapterConfig, fetchFn: FetchFn = fetch) {
     this.config = {
@@ -129,6 +148,8 @@ export class SAPAdapter implements IERPAdapter {
       username: undefined!,
       password: undefined!,
       timeoutMs: 10_000,
+      maxRetries: 3,
+      retryBaseDelayMs: 500,
       ...config,
     };
     this.fetchFn = fetchFn;
@@ -166,6 +187,11 @@ export class SAPAdapter implements IERPAdapter {
   }
 
   async getMaterialList(bomId: string): Promise<BOMItem[]> {
+    // BLOCKER 1 fix: strict allowlist prevents OData filter injection
+    if (!SAPAdapter.BOM_ID_PATTERN.test(bomId)) {
+      throw new Error(`Invalid bomId format: ${bomId}`);
+    }
+
     const url =
       `${this.config.baseUrl}${SAPAdapter.BOM_SVC}/MaterialBOM` +
       `?$filter=${encodeURIComponent(`BillOfMaterialVariant eq '${bomId}'`)}` +
@@ -209,13 +235,28 @@ export class SAPAdapter implements IERPAdapter {
     return `Bearer ${token}`;
   }
 
-  private async getOAuthToken(): Promise<string> {
+  /**
+   * BLOCKER 2 fix: single-flight OAuth token fetch.
+   * If a token fetch is already in-flight, all callers share the same promise
+   * instead of each firing a separate request to the token endpoint.
+   */
+  private getOAuthToken(): Promise<string> {
     const now = Date.now();
     // Return cached token if still valid (with 60 s buffer)
     if (this.tokenCache && this.tokenCache.expiresAt - 60_000 > now) {
-      return this.tokenCache.accessToken;
+      return Promise.resolve(this.tokenCache.accessToken);
     }
+    // Coalesce concurrent callers onto a single in-flight request
+    if (this.tokenInflight) return this.tokenInflight;
 
+    this.tokenInflight = this.doFetchToken().finally(() => {
+      this.tokenInflight = null;
+    });
+    return this.tokenInflight;
+  }
+
+  private async doFetchToken(): Promise<string> {
+    const now = Date.now();
     const tokenUrl = this.config.tokenUrl;
     const body = new URLSearchParams({
       grant_type: "client_credentials",
@@ -247,7 +288,7 @@ export class SAPAdapter implements IERPAdapter {
 
   private async get<T>(url: string): Promise<T> {
     const authHeader = await this.getAuthHeader();
-    const response = await this.fetchWithTimeout(url, {
+    const response = await this.fetchWithRetry(url, {
       method: "GET",
       headers: {
         Authorization: authHeader,
@@ -265,7 +306,7 @@ export class SAPAdapter implements IERPAdapter {
 
   private async post(url: string, body: unknown): Promise<void> {
     const authHeader = await this.getAuthHeader();
-    const response = await this.fetchWithTimeout(url, {
+    const response = await this.fetchWithRetry(url, {
       method: "POST",
       headers: {
         Authorization: authHeader,
@@ -280,6 +321,41 @@ export class SAPAdapter implements IERPAdapter {
         `SAP POST ${url} failed: ${response.status} ${response.statusText}`
       );
     }
+  }
+
+  /**
+   * BLOCKER 3 fix: exponential backoff with jitter for transient SAP failures.
+   * Retries on network errors and 429/5xx responses up to maxRetries times.
+   * Delay formula: min(2^attempt * retryBaseDelayMs, 10s) + [0..retryBaseDelayMs] jitter.
+   * Set retryBaseDelayMs=0 in tests to avoid slow suites.
+   */
+  private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
+      try {
+        const response = await this.fetchWithTimeout(url, init);
+        if (!RETRYABLE_STATUS_CODES.has(response.status)) {
+          // Success or non-retryable client error — return immediately
+          return response;
+        }
+        // Retryable server-side status — record and retry after delay
+        lastError = new Error(
+          `SAP ${init.method ?? "GET"} ${url}: transient ${response.status}`
+        );
+      } catch (err) {
+        // Network-level error (timeout, DNS failure, etc.)
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+
+      if (attempt < this.config.maxRetries) {
+        const base = this.config.retryBaseDelayMs;
+        const backoff = Math.min(2 ** attempt * base, 10_000);
+        const jitter = Math.random() * base;
+        await sleep(backoff + jitter);
+      }
+    }
+
+    throw lastError ?? new Error(`SAP request failed after ${this.config.maxRetries} retries`);
   }
 
   private fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -307,6 +383,9 @@ export class SAPAdapter implements IERPAdapter {
       actualEnd: order.ActualEndDate ? this.parseDate(order.ActualEndDate) : undefined,
       status: this.mapOrderStatus(order.ProductionOrderStatus),
       priority: 1,
+      // NOTE: ProductionPlant is a plant/facility code, not a single machine ID.
+      // Correct mapping requires an explicit plant→line/machine lookup table.
+      // Stored here as-is for the sync flow; callers should treat it as lineId context.
       machineId: order.ProductionPlant,
       bomId: order.BillOfMaterialVariant,
       erpReference: order.ProductionOrder,
@@ -319,10 +398,13 @@ export class SAPAdapter implements IERPAdapter {
     sapStatus: string
   ): WorkOrder["status"] {
     // SAP order statuses: CRTD=created, REL=released, PCNF=partially confirmed,
-    // CNF=confirmed, TECO=technically completed, DLT=deleted
+    // CNF=confirmed (fully), TECO=technically completed, DLT=deleted.
+    // NOTE: PCNF must be checked before CNF because "PCNF" contains "CNF".
     const upper = sapStatus.toUpperCase();
-    if (upper.includes("TECO") || upper.includes("CNF")) return "completed";
-    if (upper.includes("REL") || upper.includes("PCNF")) return "released";
+    if (upper.includes("TECO")) return "completed";
+    if (upper.includes("PCNF")) return "in_progress"; // partial confirm — work in progress
+    if (upper.includes("CNF")) return "completed";    // full confirm — after PCNF check
+    if (upper.includes("REL")) return "released";
     if (upper.includes("DLT")) return "cancelled";
     return "draft";
   }
@@ -361,4 +443,10 @@ interface SAPBOMItem {
   BillOfMaterialItemDescription?: string;
   BillOfMaterialItemQuantity?: string | number;
   BillOfMaterialItemUnit?: string;
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

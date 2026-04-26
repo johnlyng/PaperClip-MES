@@ -11,6 +11,7 @@ const BASE_CONFIG: SAPAdapterConfig = {
   clientSecret: "test-client-secret",
   tokenUrl: "https://sap-test.example.com/sap/bc/sec/oauth2/token",
   timeoutMs: 5_000,
+  retryBaseDelayMs: 0, // no sleep in tests
 };
 
 const TOKEN_RESPONSE = {
@@ -400,5 +401,141 @@ describe("SAPAdapter — /Date() legacy format parsing", () => {
 
     expect(wo.scheduledStart).toBeInstanceOf(Date);
     expect(wo.scheduledStart.toISOString()).toBe("2026-04-01T00:00:00.000Z");
+  });
+});
+
+// ─── BLOCKER 1: OData filter injection guard ──────────────────────────────────
+
+describe("SAPAdapter — getMaterialList input validation (BLOCKER 1)", () => {
+  it("throws on bomId containing OData injection characters", async () => {
+    const adapter = new SAPAdapter(BASE_CONFIG, makeMockFetch());
+
+    await expect(
+      adapter.getMaterialList("bom'; $filter=1 eq 1 &")
+    ).rejects.toThrow("Invalid bomId format");
+  });
+
+  it("throws on bomId with single-quote injection", async () => {
+    const adapter = new SAPAdapter(BASE_CONFIG, makeMockFetch());
+    await expect(adapter.getMaterialList("bom'injection")).rejects.toThrow("Invalid bomId format");
+  });
+
+  it("accepts valid bomId matching the allowlist pattern", async () => {
+    const adapter = new SAPAdapter(BASE_CONFIG, makeMockFetch());
+    // Should not throw
+    await expect(adapter.getMaterialList("BOM-001")).resolves.toBeDefined();
+    await expect(adapter.getMaterialList("BOM_v2.0")).resolves.toBeDefined();
+  });
+});
+
+// ─── BLOCKER 2: OAuth single-flight race condition ────────────────────────────
+
+describe("SAPAdapter — OAuth single-flight token fetch (BLOCKER 2)", () => {
+  it("concurrent callers share a single token request when cache is cold", async () => {
+    let tokenCallCount = 0;
+    // Introduce a small delay to make concurrent token requests overlap
+    const mockFetch: FetchFn = async (url: string, init?: RequestInit) => {
+      if (String(url).includes("/oauth2/token")) {
+        tokenCallCount++;
+        await new Promise((r) => setTimeout(r, 10)); // simulate network latency
+        return jsonResponse(TOKEN_RESPONSE);
+      }
+      return makeMockFetch()(url, init);
+    };
+
+    const adapter = new SAPAdapter(BASE_CONFIG, mockFetch);
+    const from = new Date("2026-04-01");
+    const to = new Date("2026-04-01");
+
+    // Fire two concurrent requests — both should share the same token fetch
+    await Promise.all([
+      adapter.getWorkOrdersByDate(from, to),
+      adapter.getWorkOrdersByDate(from, to),
+    ]);
+
+    // Single-flight means exactly one token request regardless of concurrency
+    expect(tokenCallCount).toBe(1);
+  });
+});
+
+// ─── BLOCKER 3: Retry on transient failures ───────────────────────────────────
+
+describe("SAPAdapter — retry with exponential backoff (BLOCKER 3)", () => {
+  it("retries on 503 and succeeds on the next attempt", async () => {
+    let callCount = 0;
+    const mockFetch: FetchFn = async (url: string, init?: RequestInit) => {
+      if (String(url).includes("/oauth2/token")) {
+        return jsonResponse(TOKEN_RESPONSE);
+      }
+      callCount++;
+      // First call returns 503, second call succeeds
+      if (callCount === 1) {
+        return new Response(null, { status: 503, statusText: "Service Unavailable" });
+      }
+      return makeMockFetch()(url, init);
+    };
+
+    const adapter = new SAPAdapter({ ...BASE_CONFIG, maxRetries: 3, timeoutMs: 5_000, retryBaseDelayMs: 0 }, mockFetch);
+    const workOrders = await adapter.getWorkOrdersByDate(
+      new Date("2026-04-01"),
+      new Date("2026-04-01")
+    );
+
+    expect(callCount).toBeGreaterThanOrEqual(2);
+    expect(workOrders.length).toBeGreaterThan(0);
+  });
+
+  it("retries on 429 and succeeds on the next attempt", async () => {
+    let callCount = 0;
+    const mockFetch: FetchFn = async (url: string, init?: RequestInit) => {
+      if (String(url).includes("/oauth2/token")) {
+        return jsonResponse(TOKEN_RESPONSE);
+      }
+      callCount++;
+      if (callCount === 1) {
+        return new Response(null, { status: 429, statusText: "Too Many Requests" });
+      }
+      return makeMockFetch()(url, init);
+    };
+
+    const adapter = new SAPAdapter({ ...BASE_CONFIG, maxRetries: 3, timeoutMs: 5_000, retryBaseDelayMs: 0 }, mockFetch);
+    const workOrders = await adapter.getWorkOrdersByDate(
+      new Date("2026-04-01"),
+      new Date("2026-04-01")
+    );
+
+    expect(callCount).toBeGreaterThanOrEqual(2);
+    expect(workOrders.length).toBeGreaterThan(0);
+  });
+
+  it("throws after exhausting all retries on persistent 503", async () => {
+    const mockFetch: FetchFn = async (url: string) => {
+      if (String(url).includes("/oauth2/token")) {
+        return jsonResponse(TOKEN_RESPONSE);
+      }
+      return new Response(null, { status: 503, statusText: "Service Unavailable" });
+    };
+
+    const adapter = new SAPAdapter({ ...BASE_CONFIG, maxRetries: 1, timeoutMs: 5_000, retryBaseDelayMs: 0 }, mockFetch);
+    await expect(
+      adapter.getWorkOrdersByDate(new Date("2026-04-01"), new Date("2026-04-01"))
+    ).rejects.toThrow("SAP GET");
+  });
+});
+
+// ─── Non-blocking: PCNF maps to in_progress ───────────────────────────────────
+
+describe("SAPAdapter — PCNF status mapping", () => {
+  it("maps PCNF (partially confirmed) to in_progress rather than released", async () => {
+    const pcnfOrder = {
+      ...SAP_PROD_ORDERS.value[0],
+      ProductionOrderStatus: "PCNF",
+    };
+    const adapter = new SAPAdapter(
+      BASE_CONFIG,
+      makeMockFetch({ ProductionOrder: { value: [pcnfOrder] } })
+    );
+    const [wo] = await adapter.getWorkOrdersByDate(new Date("2026-04-01"), new Date("2026-04-01"));
+    expect(wo.status).toBe("in_progress");
   });
 });

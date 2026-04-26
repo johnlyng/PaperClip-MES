@@ -1,18 +1,57 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { IERPAdapter } from "@mes/domain/erp";
-import type { WorkOrder, ProductionResult } from "@mes/types";
+import type { WorkOrder, ProductionResult, UserRole } from "@mes/types";
 
 /**
  * ERP integration routes — wired via app.ts with the active IERPAdapter.
  *
  * POST /api/v1/erp/sync
  *   Pulls open production orders from the ERP for the next 30 days and
- *   upserts them into the local in-memory work order store (placeholder until
- *   GST-25 migrates to PostgreSQL).
+ *   upserts them into the local work order store. No auth required (internal
+ *   operation triggered by scheduler or operator dashboard).
  *
  * POST /api/v1/erp/confirm/:workOrderId
  *   Posts completion data back to the ERP when a work order is closed.
+ *   Requires JWT + role in {supervisor, engineer, admin} — confirmation is
+ *   a financial/audit action in discrete manufacturing.
  */
+
+/** Roles permitted to post a production confirmation back to the ERP */
+const CONFIRM_ALLOWED_ROLES: UserRole[] = ["supervisor", "engineer", "admin"];
+
+/** JWT payload shape — must match the token issued by /auth/login */
+interface JwtPayload {
+  sub: string;
+  role: UserRole;
+  username?: string;
+}
+
+/** preHandler that verifies the JWT and enforces the confirmation role allowlist */
+async function requireConfirmRole(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  try {
+    await request.jwtVerify();
+  } catch {
+    return reply.status(401).send({
+      statusCode: 401,
+      error: "Unauthorized",
+      message: "A valid JWT is required",
+    });
+  }
+
+  const user = request.user as JwtPayload;
+  if (!CONFIRM_ALLOWED_ROLES.includes(user.role)) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: "Forbidden",
+      message: `Role '${user.role}' is not permitted to post ERP confirmations. ` +
+        `Required: ${CONFIRM_ALLOWED_ROLES.join(", ")}`,
+    });
+  }
+}
+
 export default async function erpRoutes(
   app: FastifyInstance,
   options: { erpAdapter: IERPAdapter; workOrderStore: WorkOrder[] }
@@ -99,13 +138,15 @@ export default async function erpRoutes(
       notes?: string;
     };
   }>("/erp/confirm/:workOrderId", {
+    preHandler: [requireConfirmRole],
     schema: {
       tags: ["ERP"],
       summary: "Post completion data back to ERP for a closed work order",
       description:
         "When a Work Order is completed in the MES, this endpoint posts the " +
         "production result (actual qty, scrap, operator) back to SAP as a " +
-        "Production Order Confirmation (TECO).",
+        "Production Order Confirmation (TECO). Requires supervisor/engineer/admin role.",
+      security: [{ bearerAuth: [] }],
       params: {
         type: "object",
         properties: { workOrderId: { type: "string" } },
@@ -116,8 +157,8 @@ export default async function erpRoutes(
         properties: {
           machineId: { type: "string" },
           operatorId: { type: "string" },
-          actualQuantity: { type: "number" },
-          scrapQuantity: { type: "number" },
+          actualQuantity: { type: "number", minimum: 0 },
+          scrapQuantity: { type: "number", minimum: 0 },
           notes: { type: "string" },
         },
         required: ["actualQuantity", "scrapQuantity"],
@@ -130,6 +171,9 @@ export default async function erpRoutes(
             confirmed: { type: "boolean" },
           },
         },
+        400: { type: "object" },
+        401: { type: "object" },
+        403: { type: "object" },
         404: { type: "object" },
         422: { type: "object" },
         502: { type: "object" },
@@ -155,12 +199,31 @@ export default async function erpRoutes(
       });
     }
 
+    // BLOCKER 4 fix: validate quantities against the work order's planned quantity
+    const { actualQuantity, scrapQuantity } = request.body;
+    if (actualQuantity < 0 || scrapQuantity < 0) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: "Bad Request",
+        message: "Negative quantities are invalid",
+      });
+    }
+    if (actualQuantity + scrapQuantity > wo.quantity) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: "Bad Request",
+        message:
+          `actualQuantity (${actualQuantity}) + scrapQuantity (${scrapQuantity}) ` +
+          `must not exceed work order quantity (${wo.quantity})`,
+      });
+    }
+
     const result: ProductionResult = {
       workOrderId: wo.erpReference ?? workOrderId,
       machineId: request.body.machineId ?? wo.machineId ?? "unknown",
       operatorId: request.body.operatorId ?? wo.operatorId,
-      actualQuantity: request.body.actualQuantity,
-      scrapQuantity: request.body.scrapQuantity,
+      actualQuantity,
+      scrapQuantity,
       completedAt: wo.actualEnd ?? new Date(),
       notes: request.body.notes,
     };
