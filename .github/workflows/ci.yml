@@ -117,6 +117,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build workspace packages
+        # E2E specs import @mes/test-fixtures directly (not via Docker), so the
+        # TypeScript packages must be compiled to dist/ before Playwright runs.
+        run: pnpm turbo build --filter="./packages/*"
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
