@@ -64,7 +64,7 @@ export function useTelemetryWS(wsUrl?: string) {
     connect()
 
     return () => {
-      reconnectTimer.current && clearTimeout(reconnectTimer.current)
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       wsRef.current?.close()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
