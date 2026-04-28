@@ -123,7 +123,9 @@ export const DISCRETE_WORK_ORDERS: WorkOrder[] = [DISCRETE_WO_DRAFT];
  *   OEE          = 0.9000 × 0.8796 × 0.9500 ≈ 0.7520
  */
 export const DISCRETE_PRODUCTION_RESULT = {
-  workOrderId: DISCRETE_ERP_ORDER_ID,
+  // MES work order ID — NOT the SAP erpReference. Use this as the :workOrderId
+  // path param on POST /api/v1/erp/confirm/:workOrderId.
+  workOrderId: DISCRETE_WO_DRAFT.id,
   machineId: DISCRETE_MACHINE_ID,
   actualQuantity: 95,
   scrapQuantity: 5,
