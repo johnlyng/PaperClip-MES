@@ -4,12 +4,16 @@ import { CreateWorkOrderDialog } from '@/components/CreateWorkOrderDialog'
 import { MachineStatusPanel } from '@/components/OEEPanel'
 import { TelemetryFeed } from '@/components/TelemetryFeed'
 import { useAppStore } from '@/store'
+import { useAuthStore } from '@/auth'
+import { LoginPage } from '@/LoginPage'
 
 // WS URL from env — falls back to mock simulator when undefined
 const WS_URL = import.meta.env.VITE_WS_URL as string | undefined
 
 function Header() {
   const wsConnected = useAppStore(s => s.wsConnected)
+  const currentUser = useAuthStore(s => s.currentUser)
+  const logout = useAuthStore(s => s.logout)
   return (
     <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
       <div className="flex items-center gap-3">
@@ -27,13 +31,29 @@ function Header() {
         <span className="text-xs text-slate-500">
           {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
         </span>
+        {currentUser && (
+          <>
+            <span className="text-xs text-slate-400 hidden sm:block">{currentUser.displayName}</span>
+            <button
+              onClick={logout}
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+            >
+              Sign out
+            </button>
+          </>
+        )}
       </div>
     </header>
   )
 }
 
 export default function App() {
+  const token = useAuthStore(s => s.token)
   useTelemetryWS(WS_URL)
+
+  if (!token) {
+    return <LoginPage />
+  }
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-slate-100 flex flex-col">
