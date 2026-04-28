@@ -47,7 +47,6 @@ export class MockERPAdapter implements IERPAdapter {
         machineId: "machine-mock-002",
         bomId: "bom-widget-beta-v2",
         erpReference: "WO-2026-002",
-        actualStart: now,
         createdAt: now,
         updatedAt: now,
       },
