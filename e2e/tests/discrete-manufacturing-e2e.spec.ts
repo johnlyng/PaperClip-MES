@@ -262,11 +262,7 @@ test.describe("Discrete Manufacturing E2E — 7-step checklist (GST-29)", () => 
       headers: { "Content-Type": "application/json" },
     });
 
-    if (loginResp.status() !== 200) {
-      // Auth endpoint unavailable in this test environment — skip ERP confirm
-      test.skip();
-      return;
-    }
+    expect(loginResp.status(), "Auth endpoint must be available for AC-ERP-02").toBe(200);
 
     const { token } = (await loginResp.json()) as { token: string };
 
