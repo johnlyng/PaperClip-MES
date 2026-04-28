@@ -30,7 +30,7 @@ import net from "net";
 import { createServer } from "net";
 import { createRequire } from "module";
 import mqtt from "mqtt";
-// aedes is CJS-only; use createRequire for correct ESM interop
+// aedes 0.51.x is CJS; use createRequire for ESM interop in Jest VM modules
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const createBroker = require("aedes") as (opts?: object) => {

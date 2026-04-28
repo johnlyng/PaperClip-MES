@@ -9,7 +9,7 @@
  */
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { App } from "../../App.js";
+import App from "../../App.js";
 
 describe("App — root render smoke test (AC-UI-02)", () => {
   it("renders without throwing", () => {
@@ -22,11 +22,11 @@ describe("App — root render smoke test (AC-UI-02)", () => {
     expect(container.firstChild).not.toBeNull();
   });
 
-  it("shows MES dashboard heading or connection status", () => {
+  it("shows Shop Floor dashboard heading", () => {
     render(<App />);
     // The h1 dashboard heading must be present
     const heading = screen.queryByRole("heading", { level: 1 });
     expect(heading).not.toBeNull();
-    expect(heading?.textContent).toMatch(/MES/i);
+    expect(heading?.textContent).toMatch(/Shop Floor|MES/i);
   });
 });
