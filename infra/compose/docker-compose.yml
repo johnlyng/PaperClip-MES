@@ -119,7 +119,7 @@ services:
         condition: service_healthy
 
   scadalts-db:
-    image: mysql:8.4
+    image: mysql:5.7
     container_name: mes-scadalts-db
     restart: unless-stopped
     environment:
