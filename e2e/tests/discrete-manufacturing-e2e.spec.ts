@@ -24,12 +24,18 @@
  * Infrastructure: `docker compose up` with the full production-equivalent stack.
  */
 import { test, expect } from "../fixtures/authFixture.js";
-import {
-  DISCRETE_MACHINE_ID,
-  DISCRETE_ERP_ORDER_ID,
-  DISCRETE_OEE_EXPECTED,
-  DISCRETE_OEE_TOLERANCE,
-} from "@mes/test-fixtures";
+
+// Scenario constants — kept in sync with packages/test-fixtures/src/seeds/discrete-manufacturing.ts
+const DISCRETE_MACHINE_ID = "machine-cnc-001";
+const DISCRETE_ERP_ORDER_ID = "SAP-PROD-ORDER-100001";
+const DISCRETE_OEE_TOLERANCE = 0.001;
+const DISCRETE_OEE_EXPECTED = {
+  availability: 432 / 480,
+  performance: (95 * 4.0) / 432,
+  quality: 95 / 100,
+  oee: (432 / 480) * ((95 * 4.0) / 432) * (95 / 100),
+  idealRatePerMin: 1 / 4.0,
+};
 
 const API_BASE = process.env["API_BASE_URL"] ?? "http://localhost:3000";
 
