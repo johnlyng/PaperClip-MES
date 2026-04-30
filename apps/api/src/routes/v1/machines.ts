@@ -12,12 +12,13 @@ const store: Machine[] = [...MACHINES];
  *  In production this would come from the machines table or ERP BOM data.
  *  Zero / undefined = fall back to Availability for Performance (conservative). */
 const IDEAL_RATE_PER_MIN: Record<string, number> = {
-  "machine-mock-001": 10,   // CNC Lathe Alpha: 10 pcs/min
-  "machine-mock-002": 8,    // Milling Station Beta: 8 pcs/min
-  "machine-mock-003": 15,   // Assembly Robot Gamma: 15 pcs/min
-  "machine-reactor-001": 2, // Batch Reactor R-101: 2 kg/min
-  "machine-reactor-002": 5, // Continuous Mixer CM-201: 5 L/min
-  "machine-dryer-001": 3,   // Spray Dryer SD-301: 3 kg/min
+  "machine-mock-001": 10,    // CNC Lathe Alpha: 10 pcs/min
+  "machine-mock-002": 8,     // Milling Station Beta: 8 pcs/min
+  "machine-mock-003": 15,    // Assembly Robot Gamma: 15 pcs/min
+  "machine-cnc-001": 0.25,   // CNC Lathe Alpha (Line A): 1 unit / 4.0 min = 0.25 pcs/min (GST-29)
+  "machine-reactor-001": 2,  // Batch Reactor R-101: 2 kg/min
+  "machine-reactor-002": 5,  // Continuous Mixer CM-201: 5 L/min
+  "machine-dryer-001": 3,    // Spray Dryer SD-301: 3 kg/min
 };
 
 export default async function machineRoutes(app: FastifyInstance) {

@@ -80,8 +80,9 @@ export default async function erpRoutes(
     const syncedOrders: WorkOrder[] = [];
 
     for (const erpOrder of erpOrders) {
-      // Data-quality guard: orders without an erpReference cannot be safely deduped.
-      // Creating them would produce unbounded duplicates on every sync; skip and warn.
+      // Orders without an erpReference cannot be deduped — creating them would
+      // produce unbounded duplicates on every sync. Skip and warn so the issue
+      // is visible in logs rather than silently inflating the store.
       if (erpOrder.erpReference == null) {
         app.log.warn(
           { workOrderNumber: erpOrder.workOrderNumber },
@@ -91,7 +92,7 @@ export default async function erpRoutes(
         continue;
       }
 
-      // Dedup by erpReference — don't create a duplicate WO for the same SAP order
+      // Dedup by erpReference — don't create a duplicate WO for the same SAP order.
       const exists = workOrderStore.some(
         (wo) => wo.erpReference === erpOrder.erpReference
       );

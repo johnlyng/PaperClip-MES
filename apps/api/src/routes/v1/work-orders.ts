@@ -55,7 +55,7 @@ export default async function workOrderRoutes(app: FastifyInstance) {
       scheduledEnd: now,
       ...body,
       // status MUST come after ...body so callers cannot override the invariant.
-      status: "released" as WorkOrderStatus,
+      status: "draft" as WorkOrderStatus,
       id: `wo-${Date.now()}`,
       createdBy: user.sub,
       createdAt: now,

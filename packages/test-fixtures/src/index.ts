@@ -7,6 +7,9 @@ export { MockERPAdapter } from "@mes/domain";
 // Process-manufacturing seeds (board-confirmed priority)
 export * from "./seeds/process-manufacturing.js";
 
+// Discrete-manufacturing seeds (GST-29 scenario validation)
+export * from "./seeds/discrete-manufacturing.js";
+
 // Testcontainers helpers (integration tests only — not imported in unit test builds)
 export * from "./containers/index.js";
 
@@ -45,6 +48,15 @@ export const MACHINES: Machine[] = [
     name: "Assembly Robot Gamma",
     status: "fault",
     lineId: "line-002",
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  // Discrete-manufacturing machines (GST-29 scenario)
+  {
+    id: "machine-cnc-001",
+    name: "CNC Lathe Alpha (Line A)",
+    status: "running",
+    lineId: "line-cnc-001",
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },

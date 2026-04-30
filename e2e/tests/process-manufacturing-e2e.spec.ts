@@ -59,6 +59,18 @@ test.describe("Process-Manufacturing E2E — 9-step checklist", () => {
     const body = (await response.json()) as { id: string };
     workOrderId = body.id;
     expect(workOrderId).toBeTruthy();
+
+    // Release the work order: draft → released.
+    // The state machine requires `released` before `start` is valid; without
+    // this the Step 5 PATCH /transition will return 422.
+    const releaseResp = await page.request.patch(
+      `${API_BASE}/api/v1/work-orders/${workOrderId}/transition`,
+      {
+        data: { event: "release" },
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+    expect(releaseResp.status()).toBe(200);
   });
 
   test("Step 5: Operator starts work order from dashboard (AC-UI-03, AC-WO-02)", async ({
