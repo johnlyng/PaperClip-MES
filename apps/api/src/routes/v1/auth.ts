@@ -8,14 +8,17 @@ if (process.env["NODE_ENV"] === "production" && !process.env["JWT_SECRET"]) {
 }
 
 // Allow E2E tests to inject additional fixture users via AUTH_FIXTURE_USERS env var.
+// Production guard: disabled in production to prevent arbitrary role injection with no audit trail.
 // Format: JSON array of User objects with passwordHash fields.
 let extraUsers: typeof USERS = [];
-try {
-  if (process.env["AUTH_FIXTURE_USERS"]) {
-    extraUsers = JSON.parse(process.env["AUTH_FIXTURE_USERS"]) as typeof USERS;
+if (process.env["NODE_ENV"] !== "production") {
+  try {
+    if (process.env["AUTH_FIXTURE_USERS"]) {
+      extraUsers = JSON.parse(process.env["AUTH_FIXTURE_USERS"]) as typeof USERS;
+    }
+  } catch {
+    // Ignore malformed fixture env — fail open so tests aren't broken by a bad env
   }
-} catch {
-  // Ignore malformed fixture env — fail open so tests aren't broken by a bad env
 }
 
 const ALL_USERS = [...USERS, ...extraUsers];

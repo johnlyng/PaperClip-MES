@@ -3,6 +3,7 @@ import { MACHINES } from "@mes/test-fixtures";
 import type { Machine } from "@mes/types";
 import { OEEQueryService } from "../../services/oee-query.js";
 import { createDb } from "@mes/db";
+import { requireAuth } from "../../middleware/auth.js";
 
 // Stub in-memory store — replace with Drizzle + PostgreSQL machines table in GST-8
 const store: Machine[] = [...MACHINES];
@@ -32,6 +33,7 @@ export default async function machineRoutes(app: FastifyInstance) {
 
   // ─── GET /api/v1/machines ──────────────────────────────────────────────
   app.get("/machines", {
+    preHandler: requireAuth,
     schema: {
       tags: ["Machines"],
       summary: "List all machines",
@@ -41,6 +43,7 @@ export default async function machineRoutes(app: FastifyInstance) {
 
   // ─── GET /api/v1/machines/:id ──────────────────────────────────────────
   app.get<{ Params: { id: string } }>("/machines/:id", {
+    preHandler: requireAuth,
     schema: {
       tags: ["Machines"],
       summary: "Get a machine by ID",
@@ -78,6 +81,7 @@ export default async function machineRoutes(app: FastifyInstance) {
   }>(
     "/machines/:id/oee",
     {
+      preHandler: requireAuth,
       schema: {
         tags: ["Machines", "OEE"],
         summary: "Get OEE time-series for a machine",
@@ -186,6 +190,7 @@ export default async function machineRoutes(app: FastifyInstance) {
   }>(
     "/machines/:id/oee/summary",
     {
+      preHandler: requireAuth,
       schema: {
         tags: ["Machines", "OEE"],
         summary: "Get aggregated OEE summary for a machine (default: last shift)",
