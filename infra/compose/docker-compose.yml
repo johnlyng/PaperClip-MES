@@ -139,9 +139,13 @@ services:
 
   scadalts-db:
     profiles: [scadalts]
-    image: mysql:5.7
+    image: mysql:8.4
     container_name: mes-scadalts-db
     restart: unless-stopped
+    # MySQL 8.4 enables binary logging by default. Scada-LTS V1.1 migration creates
+    # NOT DETERMINISTIC stored functions which MySQL 8.4 rejects when log_bin is ON
+    # and log_bin_trust_function_creators is OFF. This flag allows function creation.
+    command: --log-bin-trust-function-creators=1
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: scadalts

@@ -28,15 +28,9 @@
 
 import net from "net";
 import { createServer } from "net";
-import { createRequire } from "module";
 import mqtt from "mqtt";
-// aedes 0.51.x is CJS; use createRequire for ESM interop in Jest VM modules
-const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const createBroker = require("aedes") as (opts?: object) => {
-  handle: (socket: net.Socket) => void;
-  close: (cb: () => void) => void;
-};
+// aedes 1.0.2 is ESM — import the named Aedes class directly
+import { Aedes } from "aedes";
 import { GenericContainer, Wait } from "testcontainers";
 import type { StartedTestContainer } from "testcontainers";
 import { sql } from "drizzle-orm";
@@ -103,7 +97,7 @@ let db: Db;
 let mqttSubscriber: MqttSubscriber;
 let brokerPort: number;
 let brokerServer: net.Server;
-let broker: ReturnType<typeof createBroker>;
+let broker: Aedes;
 
 beforeAll(async () => {
   // ── 1. Start TimescaleDB container ──────────────────────────────────────
@@ -134,8 +128,11 @@ beforeAll(async () => {
   db = createDb(dbUrl);
 
   // ── 2. Start in-process aedes MQTT broker ───────────────────────────────
+  // aedes 1.0.2: createBroker() is async — it calls listen() which sets
+  // closed=false and initialises persistence. Skipping this leaves the
+  // broker in closed=true state and silently drops all connect packets.
   brokerPort = await getFreePort();
-  broker = createBroker();
+  broker = await Aedes.createBroker();
   brokerServer = net.createServer(broker.handle.bind(broker));
   await new Promise<void>((resolve, reject) => {
     brokerServer.listen(brokerPort, "127.0.0.1", () => resolve());
@@ -157,7 +154,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await mqttSubscriber.disconnect();
   await new Promise<void>((resolve) => brokerServer.close(() => resolve()));
-  await broker.close(() => {});
+  await new Promise<void>((resolve) => broker.close(resolve));
   await container.stop();
 }, 30_000);
 
