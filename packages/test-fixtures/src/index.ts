@@ -145,11 +145,19 @@ export const WORK_ORDERS: WorkOrder[] = [
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
+// bcrypt hash of "dev-password" (cost=12) — all seed users share this password in dev/test.
+// Do NOT use this in production. Production users must have individually hashed passwords.
+export const DEV_HASH = "$2a$12$G6xcRkwwPO4kA5WIZWR3wOJ1.FpT0OirnFpXnzWtYlu1htUrt9mJy";
+
+// bcrypt hash of "" (empty string, cost=12) — used for constant-time verification path
+// when a username is not found, preventing username enumeration via timing side-channel.
+export const DUMMY_HASH = "$2a$12$QPp2i1hoHj8Vnr8vJXfzhOQingQt6hzh20mpdLByU5UnQ0Hg6gvUW";
+
 export const USERS: User[] = [
-  { id: "user-op-001", username: "jsmith", displayName: "Jane Smith", role: "operator", lineIds: ["line-001"], createdAt: SEED_DATE },
-  { id: "user-sup-001", username: "mjones", displayName: "Mike Jones", role: "supervisor", lineIds: ["line-001", "line-002"], createdAt: SEED_DATE },
-  { id: "user-eng-001", username: "alee", displayName: "Alice Lee", role: "engineer", createdAt: SEED_DATE },
-  { id: "user-adm-001", username: "admin", displayName: "System Admin", role: "admin", createdAt: SEED_DATE },
+  { id: "user-op-001", username: "jsmith", displayName: "Jane Smith", role: "operator", lineIds: ["line-001"], passwordHash: DEV_HASH, createdAt: SEED_DATE },
+  { id: "user-sup-001", username: "mjones", displayName: "Mike Jones", role: "supervisor", lineIds: ["line-001", "line-002"], passwordHash: DEV_HASH, createdAt: SEED_DATE },
+  { id: "user-eng-001", username: "alee", displayName: "Alice Lee", role: "engineer", passwordHash: DEV_HASH, createdAt: SEED_DATE },
+  { id: "user-adm-001", username: "admin", displayName: "System Admin", role: "admin", passwordHash: DEV_HASH, createdAt: SEED_DATE },
 ];
 
 // ─── OEE Snapshots ───────────────────────────────────────────────────────────

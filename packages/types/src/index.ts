@@ -123,6 +123,7 @@ export interface User {
   displayName: string;
   role: UserRole;
   lineIds?: string[];
+  passwordHash?: string;
   createdAt: Date;
 }
 

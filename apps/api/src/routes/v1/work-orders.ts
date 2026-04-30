@@ -2,10 +2,12 @@ import type { FastifyInstance } from "fastify";
 import { WorkOrderStateMachine } from "@mes/domain";
 import type { WorkOrder, WorkOrderStatus } from "@mes/types";
 import { workOrderStore as store } from "../../stores/work-orders.js";
+import { requireAuth, requireRole, type JwtPayload } from "../../middleware/auth.js";
 
 export default async function workOrderRoutes(app: FastifyInstance) {
-  // GET /api/v1/work-orders
+  // GET /api/v1/work-orders — any authenticated user
   app.get("/work-orders", {
+    preHandler: requireAuth,
     schema: {
       tags: ["Work Orders"],
       summary: "List all work orders",
@@ -13,8 +15,9 @@ export default async function workOrderRoutes(app: FastifyInstance) {
     },
   }, async () => store);
 
-  // GET /api/v1/work-orders/:id
+  // GET /api/v1/work-orders/:id — any authenticated user
   app.get<{ Params: { id: string } }>("/work-orders/:id", {
+    preHandler: requireAuth,
     schema: {
       tags: ["Work Orders"],
       summary: "Get a work order by ID",
@@ -26,8 +29,9 @@ export default async function workOrderRoutes(app: FastifyInstance) {
     return wo;
   });
 
-  // POST /api/v1/work-orders
+  // POST /api/v1/work-orders — supervisor or admin only
   app.post<{ Body: Omit<WorkOrder, "id" | "createdAt" | "updatedAt"> }>("/work-orders", {
+    preHandler: requireRole(["supervisor", "admin"]),
     schema: {
       tags: ["Work Orders"],
       summary: "Create a new work order",
@@ -35,6 +39,7 @@ export default async function workOrderRoutes(app: FastifyInstance) {
     },
   }, async (request, reply) => {
     const now = new Date();
+    const user = request.user as JwtPayload;
     // Cast to Partial so TypeScript doesn't flag duplicate keys from the spread.
     // Caller may omit required fields (e.g. process WOs use scheduledQuantity /
     // targetMachineId aliases), so we supply safe defaults before the spread.
@@ -52,6 +57,7 @@ export default async function workOrderRoutes(app: FastifyInstance) {
       // status MUST come after ...body so callers cannot override the invariant.
       status: "draft" as WorkOrderStatus,
       id: `wo-${Date.now()}`,
+      createdBy: user.sub,
       createdAt: now,
       updatedAt: now,
     };
@@ -59,10 +65,11 @@ export default async function workOrderRoutes(app: FastifyInstance) {
     return reply.status(201).send(wo);
   });
 
-  // PATCH /api/v1/work-orders/:id/transition
+  // PATCH /api/v1/work-orders/:id/transition — any authenticated user (operators start/complete)
   app.patch<{ Params: { id: string }; Body: { event: string } }>(
     "/work-orders/:id/transition",
     {
+      preHandler: requireAuth,
       schema: {
         tags: ["Work Orders"],
         summary: "Transition a work order to a new state",

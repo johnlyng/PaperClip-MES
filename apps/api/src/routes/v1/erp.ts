@@ -1,14 +1,14 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { IERPAdapter } from "@mes/domain/erp";
-import type { WorkOrder, ProductionResult, UserRole } from "@mes/types";
+import type { WorkOrder, ProductionResult } from "@mes/types";
+import { requireRole } from "../../middleware/auth.js";
 
 /**
  * ERP integration routes — wired via app.ts with the active IERPAdapter.
  *
  * POST /api/v1/erp/sync
  *   Pulls open production orders from the ERP for the next 30 days and
- *   upserts them into the local work order store. No auth required (internal
- *   operation triggered by scheduler or operator dashboard).
+ *   upserts them into the local work order store. Requires supervisor or admin role.
  *
  * POST /api/v1/erp/confirm/:workOrderId
  *   Posts completion data back to the ERP when a work order is closed.
@@ -30,42 +30,6 @@ const ERROR_SCHEMA = {
   },
 } as const;
 
-/** Roles permitted to post a production confirmation back to the ERP */
-const CONFIRM_ALLOWED_ROLES: UserRole[] = ["supervisor", "engineer", "admin"];
-
-/** JWT payload shape — must match the token issued by /auth/login */
-interface JwtPayload {
-  sub: string;
-  role: UserRole;
-  username?: string;
-}
-
-/** preHandler that verifies the JWT and enforces the confirmation role allowlist */
-async function requireConfirmRole(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
-  try {
-    await request.jwtVerify();
-  } catch {
-    return reply.status(401).send({
-      statusCode: 401,
-      error: "Unauthorized",
-      message: "A valid JWT is required",
-    });
-  }
-
-  const user = request.user as JwtPayload;
-  if (!CONFIRM_ALLOWED_ROLES.includes(user.role)) {
-    return reply.status(403).send({
-      statusCode: 403,
-      error: "Forbidden",
-      message: `Role '${user.role}' is not permitted to post ERP confirmations. ` +
-        `Required: ${CONFIRM_ALLOWED_ROLES.join(", ")}`,
-    });
-  }
-}
-
 export default async function erpRoutes(
   app: FastifyInstance,
   options: { erpAdapter: IERPAdapter; workOrderStore: WorkOrder[] }
@@ -75,6 +39,7 @@ export default async function erpRoutes(
   // ─── POST /api/v1/erp/sync ──────────────────────────────────────────────────
 
   app.post("/erp/sync", {
+    preHandler: requireRole(["supervisor", "admin"]),
     schema: {
       tags: ["ERP"],
       summary: "Sync production orders from ERP into MES",
@@ -141,6 +106,7 @@ export default async function erpRoutes(
         ...erpOrder,
         id: `erp-${erpOrder.workOrderNumber}-${Date.now()}`,
         // Force draft — ERP orders enter MES in draft state; supervisors release them.
+        // status MUST come after ...erpOrder so ERP data cannot override the invariant.
         status: "draft",
         createdAt: now,
         updatedAt: now,
@@ -166,7 +132,7 @@ export default async function erpRoutes(
       notes?: string;
     };
   }>("/erp/confirm/:workOrderId", {
-    preHandler: [requireConfirmRole],
+    preHandler: requireRole(["supervisor", "engineer", "admin"]),
     schema: {
       tags: ["ERP"],
       summary: "Post completion data back to ERP for a closed work order",
