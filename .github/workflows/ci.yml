@@ -77,6 +77,12 @@ jobs:
       - name: Build workspace packages
         run: pnpm turbo build --filter="./packages/*"
 
+      - name: Pre-pull testcontainers images
+        # Pull the TimescaleDB image before the test suite starts so the cold-pull
+        # time does not count against the 120 s beforeAll timeout in Jest.
+        run: docker pull timescale/timescaledb:latest-pg16
+        timeout-minutes: 10
+
       - name: Run integration tests — ${{ matrix.app }}
         run: pnpm --filter "@mes/${{ matrix.app }}" test:integration
         env:

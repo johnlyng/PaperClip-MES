@@ -5,17 +5,26 @@ version: "3.9"
 # used for both cloud (ECS Fargate) and on-prem (k3s) paths.
 #
 # Usage:
-#   docker compose -f infra/compose/docker-compose.yml up -d
+#   Core stack (CI + fast local dev):
+#     docker compose -f infra/compose/docker-compose.yml up -d
 #
-# Services:
+#   Full stack including Scada-LTS (local dev only):
+#     docker compose -f infra/compose/docker-compose.yml --profile scadalts up -d
+#
+# Services (core — always started):
 #   postgres            — PostgreSQL 16 + TimescaleDB extension (port 5432)
 #   emqx                — EMQX 5 MQTT broker (MQTT: 1883, Dashboard: 18083, WebSocket: 8083)
 #   api                 — MES API (Fastify v5, port 3000)
 #   web                 — React 19 frontend via nginx (port 8080)
 #   opcua-collector     — OPC-UA → MQTT bridge (dev: synthetic telemetry mode)
-#   scadalts-db         — MySQL 8 backing store for Scada-LTS (internal only)
+#
+# Services (profile: scadalts — opt-in, excluded from CI):
+#   scadalts-db         — MySQL 5.7 backing store for Scada-LTS (internal only)
 #   scadalts            — Scada-LTS SCADA server (port 8888 → Tomcat 8080)
 #   scadalts-collector  — Polls Scada-LTS REST API and publishes telemetry to EMQX (ADR-001 Decision 7)
+#
+# Why the scadalts profile? Scada-LTS has a 3-minute Tomcat start_period (180 s) which
+# pushes "docker compose up -d" past the 5-minute CI timeout on cold GitHub Actions runners.
 
 services:
   postgres:
@@ -118,7 +127,18 @@ services:
       emqx:
         condition: service_healthy
 
+  # ── Scada-LTS stack ──────────────────────────────────────────────────────────
+  # These three services are optional for local dev and excluded from CI by default.
+  # Scada-LTS has a 3-minute Tomcat startup (start_period: 180s) that would push
+  # "docker compose up -d" past the CI 5-minute timeout on cold runners.
+  #
+  # Start the full stack locally:
+  #   docker compose --profile scadalts up -d
+  # Start just the core MES stack (API, web, DB, MQTT):
+  #   docker compose up -d   (no --profile flag)
+
   scadalts-db:
+    profiles: [scadalts]
     image: mysql:8.4
     container_name: mes-scadalts-db
     restart: unless-stopped
@@ -139,6 +159,7 @@ services:
       start_period: 30s
 
   scadalts:
+    profiles: [scadalts]
     image: scadalts/scadalts:release-2.8.1
     container_name: mes-scadalts
     restart: unless-stopped
@@ -157,6 +178,7 @@ services:
       start_period: 180s
 
   scadalts-collector:
+    profiles: [scadalts]
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.scadalts-collector

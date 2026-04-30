@@ -13,23 +13,30 @@ pnpm install
 # 2. Copy env template
 cp .env.local.template .env.local
 
-# 3. Start the full stack (infrastructure + app services)
+# 3a. Start the core stack (CI-safe, fast startup)
 docker compose -f infra/compose/docker-compose.yml up -d
+
+# 3b. Start the full stack including Scada-LTS (local dev only)
+docker compose -f infra/compose/docker-compose.yml --profile scadalts up -d
 
 # 4. Run all services in dev mode (hot-reload, outside Docker)
 pnpm turbo dev
 ```
 
-Services after `docker compose up -d`:
+**Core stack** (started by `docker compose up -d`):
 | Service | URL |
 |---|---|
 | API (Fastify) | http://localhost:3000 |
 | OpenAPI docs | http://localhost:3000/docs |
 | Web dashboard (nginx) | http://localhost:8080 |
 | EMQX dashboard | http://localhost:18083 (admin/public) |
+| PostgreSQL | localhost:5432 (mes/mes/mes_dev) |
+
+**Full stack** (requires `--profile scadalts` — omitted from CI due to 3-minute Tomcat startup):
+| Service | URL |
+|---|---|
 | Scada-LTS UI | http://localhost:8888 (admin/admin) |
 | Scada-LTS collector health | http://localhost:9090/health |
-| PostgreSQL | localhost:5432 (mes/mes/mes_dev) |
 
 ## Workspace Layout
 
@@ -95,9 +102,10 @@ pnpm turbo build          # Build all packages and apps
 pnpm turbo test           # Run all unit tests
 pnpm turbo typecheck      # TypeScript type-check all packages
 pnpm turbo e2e            # Run Playwright E2E tests
-docker compose -f infra/compose/docker-compose.yml up -d    # Start full stack
-docker compose -f infra/compose/docker-compose.yml down     # Stop full stack
-docker compose -f infra/compose/docker-compose.yml logs -f  # Tail all container logs
+docker compose -f infra/compose/docker-compose.yml up -d                        # Start core stack
+docker compose -f infra/compose/docker-compose.yml --profile scadalts up -d     # Start full stack (incl. Scada-LTS)
+docker compose -f infra/compose/docker-compose.yml down                          # Stop stack
+docker compose -f infra/compose/docker-compose.yml logs -f                       # Tail all container logs
 ```
 
 ## Environment Variables

@@ -40,7 +40,6 @@ export default async function workOrderRoutes(app: FastifyInstance) {
     // targetMachineId aliases), so we supply safe defaults before the spread.
     const body = request.body as Partial<WorkOrder>;
     const wo: WorkOrder = {
-      status: "released" as WorkOrderStatus,
       workOrderNumber: `WO-${Date.now()}`,
       title: "Work Order",
       productId: "unknown",
@@ -50,6 +49,8 @@ export default async function workOrderRoutes(app: FastifyInstance) {
       scheduledStart: now,
       scheduledEnd: now,
       ...body,
+      // status MUST come after ...body so callers cannot override the invariant.
+      status: "draft" as WorkOrderStatus,
       id: `wo-${Date.now()}`,
       createdAt: now,
       updatedAt: now,

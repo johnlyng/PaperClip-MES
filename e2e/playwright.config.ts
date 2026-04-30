@@ -43,6 +43,10 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },
       },
+      // Discrete manufacturing tests are stateful (ERP sync creates DB records).
+      // Running them in a second viewport project would fail because the work order
+      // already exists from the chromium run. The chromium run covers this spec fully.
+      testIgnore: ["**/discrete-manufacturing*.spec.ts"],
     },
   ],
 });
