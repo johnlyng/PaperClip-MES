@@ -110,6 +110,7 @@ export function buildApp() {
     erpAdapter,
     workOrderStore,
   });
+  app.register(import("./routes/v1/resource-assignments.js"), { prefix: "/api/v1" });
 
   return app;
 }
