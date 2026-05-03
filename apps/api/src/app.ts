@@ -111,5 +111,7 @@ export function buildApp() {
     workOrderStore,
   });
 
+  app.register(import("./routes/v1/production-schedules.js"), { prefix: "/api/v1" });
+
   return app;
 }
