@@ -6,7 +6,12 @@ import type {
   OEEData,
   TelemetryEvent,
   Operator,
+  ApiMachine,
+  CreateApiMachinePayload,
+  UpdateApiMachinePayload,
 } from './types'
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000'
 
 // --- Seed data ----------------------------------------------------------
 
@@ -85,6 +90,21 @@ interface AppState {
   operators: Operator[]
   wsConnected: boolean
 
+  // Auth
+  authToken: string | null
+  currentUserRole: string | null
+  login: (username: string, password: string) => Promise<void>
+  logout: () => void
+
+  // DB-backed machine registry
+  apiMachines: ApiMachine[]
+  apiMachinesLoading: boolean
+  apiMachinesError: string | null
+  fetchApiMachines: () => Promise<void>
+  createApiMachine: (payload: CreateApiMachinePayload) => Promise<void>
+  updateApiMachine: (id: string, payload: UpdateApiMachinePayload) => Promise<void>
+  deleteApiMachine: (id: string) => Promise<void>
+
   // Work order actions
   createWorkOrder: (payload: CreateWorkOrderPayload) => WorkOrder
   startWorkOrder: (id: string) => void
@@ -112,6 +132,114 @@ export const useAppStore = create<AppState>((set, get) => ({
   telemetry: SEED_TELEMETRY,
   operators: SEED_OPERATORS,
   wsConnected: false,
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  authToken: localStorage.getItem('authToken'),
+  currentUserRole: localStorage.getItem('currentUserRole'),
+
+  login: async (username, password) => {
+    const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { message?: string }
+      throw new Error(body.message ?? 'Login failed')
+    }
+    const { token } = await res.json() as { token: string }
+
+    // Decode role from JWT payload (base64url, no verification needed client-side)
+    let role: string | null = null
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as { role?: string }
+      role = payload.role ?? null
+    } catch { /* ignore */ }
+
+    localStorage.setItem('authToken', token)
+    if (role) localStorage.setItem('currentUserRole', role)
+    set({ authToken: token, currentUserRole: role })
+
+    // Eagerly fetch machines now that we have a token
+    await get().fetchApiMachines()
+  },
+
+  logout: () => {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('currentUserRole')
+    set({ authToken: null, currentUserRole: null, apiMachines: [] })
+  },
+
+  // ── DB-backed machine registry ────────────────────────────────────────────
+  apiMachines: [],
+  apiMachinesLoading: false,
+  apiMachinesError: null,
+
+  fetchApiMachines: async () => {
+    const token = get().authToken
+    if (!token) return
+    set({ apiMachinesLoading: true, apiMachinesError: null })
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/machines`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json() as ApiMachine[]
+      set({ apiMachines: data })
+    } catch (err) {
+      set({ apiMachinesError: err instanceof Error ? err.message : 'Failed to load machines' })
+    } finally {
+      set({ apiMachinesLoading: false })
+    }
+  },
+
+  createApiMachine: async (payload) => {
+    const token = get().authToken
+    if (!token) throw new Error('Not authenticated')
+    const res = await fetch(`${API_BASE}/api/v1/machines`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { message?: string }
+      throw new Error(body.message ?? `HTTP ${res.status}`)
+    }
+    const created = await res.json() as ApiMachine
+    set(state => ({ apiMachines: [...state.apiMachines, created] }))
+  },
+
+  updateApiMachine: async (id, payload) => {
+    const token = get().authToken
+    if (!token) throw new Error('Not authenticated')
+    const res = await fetch(`${API_BASE}/api/v1/machines/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { message?: string }
+      throw new Error(body.message ?? `HTTP ${res.status}`)
+    }
+    const updated = await res.json() as ApiMachine
+    set(state => ({
+      apiMachines: state.apiMachines.map(m => m.id === id ? updated : m),
+    }))
+  },
+
+  deleteApiMachine: async (id) => {
+    const token = get().authToken
+    if (!token) throw new Error('Not authenticated')
+    const res = await fetch(`${API_BASE}/api/v1/machines/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { message?: string }
+      throw new Error(body.message ?? `HTTP ${res.status}`)
+    }
+    set(state => ({ apiMachines: state.apiMachines.filter(m => m.id !== id) }))
+  },
 
   createWorkOrder: (payload) => {
     const machine = get().machines.find(m => m.id === payload.machineId)

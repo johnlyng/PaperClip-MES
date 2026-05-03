@@ -44,10 +44,16 @@ export type MachineStatus = "running" | "idle" | "fault" | "maintenance" | "disc
 export interface Machine {
   id: string;
   name: string;
+  description?: string;
+  /** Free-form machine category, e.g. "cnc", "robot", "reactor", "conveyor" */
+  type?: string;
+  lineId?: string;
+  /** Ideal output rate in units/min — used for OEE Performance calculation.
+   *  Undefined / null = no target rate; Performance falls back to Availability. */
+  idealRatePerMin?: number | null;
   opcuaEndpoint?: string;
   opcuaNodeIds?: Record<string, string>; // metric -> NodeId
   status: MachineStatus;
-  lineId?: string;
   metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;

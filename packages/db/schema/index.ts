@@ -38,3 +38,10 @@ export {
   type MachineTelemetryRow,
   type NewMachineTelemetryRow,
 } from "./machine-telemetry.js";
+
+export {
+  machines,
+  machineStatusEnum,
+  type MachineRow,
+  type NewMachineRow,
+} from "./machines.js";

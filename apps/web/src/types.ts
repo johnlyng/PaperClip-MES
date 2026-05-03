@@ -64,3 +64,48 @@ export interface Operator {
   name: string
   badge: string
 }
+
+// ─── API Machine (DB-backed registry) ────────────────────────────────────────
+// Matches the shape returned by GET /api/v1/machines.
+// Distinct from the frontend-only `Machine` type (which carries real-time WS state).
+
+export type MachineStatusValue =
+  | 'running'
+  | 'idle'
+  | 'fault'
+  | 'maintenance'
+  | 'disconnected'
+
+export interface ApiMachine {
+  id: string
+  name: string
+  description?: string
+  type?: string
+  lineId?: string
+  idealRatePerMin?: number | null
+  status: MachineStatusValue
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateApiMachinePayload {
+  id: string
+  name: string
+  description?: string
+  type?: string
+  lineId?: string
+  idealRatePerMin?: number
+  status?: MachineStatusValue
+  metadata?: Record<string, unknown>
+}
+
+export interface UpdateApiMachinePayload {
+  name?: string
+  description?: string
+  type?: string
+  lineId?: string
+  idealRatePerMin?: number | null
+  status?: MachineStatusValue
+  metadata?: Record<string, unknown>
+}

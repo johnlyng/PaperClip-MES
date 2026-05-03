@@ -1,37 +1,69 @@
 import type { FastifyInstance } from "fastify";
-import { MACHINES } from "@mes/test-fixtures";
-import type { Machine } from "@mes/types";
+import { eq, asc } from "drizzle-orm";
+import { createDb, machines as machinesTable } from "@mes/db";
+import type { Machine, MachineStatus } from "@mes/types";
 import { OEEQueryService } from "../../services/oee-query.js";
-import { createDb } from "@mes/db";
-import { requireAuth } from "../../middleware/auth.js";
+import { requireAuth, requireRole } from "../../middleware/auth.js";
 
-// Stub in-memory store — replace with Drizzle + PostgreSQL machines table in GST-8
-const store: Machine[] = [...MACHINES];
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Per-machine ideal output rate (units/min) used for Performance calculation.
- *  In production this would come from the machines table or ERP BOM data.
- *  Zero / undefined = fall back to Availability for Performance (conservative). */
-const IDEAL_RATE_PER_MIN: Record<string, number> = {
-  "machine-mock-001": 10,   // CNC Lathe Alpha: 10 pcs/min
-  "machine-mock-002": 8,    // Milling Station Beta: 8 pcs/min
-  "machine-mock-003": 15,   // Assembly Robot Gamma: 15 pcs/min
-  "machine-reactor-001": 2, // Batch Reactor R-101: 2 kg/min
-  "machine-reactor-002": 5, // Continuous Mixer CM-201: 5 L/min
-  "machine-dryer-001": 3,   // Spray Dryer SD-301: 3 kg/min
-};
+interface CreateMachineBody {
+  id: string;
+  name: string;
+  description?: string;
+  type?: string;
+  lineId?: string;
+  idealRatePerMin?: number;
+  status?: MachineStatus;
+  metadata?: Record<string, unknown>;
+}
+
+interface UpdateMachineBody {
+  name?: string;
+  description?: string;
+  type?: string;
+  lineId?: string;
+  idealRatePerMin?: number | null;
+  status?: MachineStatus;
+  metadata?: Record<string, unknown>;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Map a Drizzle row to the @mes/types Machine shape */
+function rowToMachine(row: typeof machinesTable.$inferSelect): Machine {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? undefined,
+    type: row.type ?? undefined,
+    lineId: row.lineId ?? undefined,
+    idealRatePerMin: row.idealRatePerMin,
+    status: row.status as MachineStatus,
+    metadata: (row.metadata as Record<string, unknown>) ?? undefined,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+// ─── Route plugin ─────────────────────────────────────────────────────────────
 
 export default async function machineRoutes(app: FastifyInstance) {
   // Lazy-initialise DB + OEE service (only when DATABASE_URL is available)
+  let db: ReturnType<typeof createDb> | null = null;
   let oeeService: OEEQueryService | null = null;
+
+  function getDb() {
+    if (!db) db = createDb();
+    return db;
+  }
+
   function getOEEService(): OEEQueryService {
-    if (!oeeService) {
-      const db = createDb();
-      oeeService = new OEEQueryService(db);
-    }
+    if (!oeeService) oeeService = new OEEQueryService(getDb());
     return oeeService;
   }
 
-  // ─── GET /api/v1/machines ──────────────────────────────────────────────
+  // ─── GET /api/v1/machines ──────────────────────────────────────────────────
   app.get("/machines", {
     preHandler: requireAuth,
     schema: {
@@ -39,9 +71,15 @@ export default async function machineRoutes(app: FastifyInstance) {
       summary: "List all machines",
       response: { 200: { type: "array" } },
     },
-  }, async () => store);
+  }, async () => {
+    const rows = await getDb()
+      .select()
+      .from(machinesTable)
+      .orderBy(asc(machinesTable.name));
+    return rows.map(rowToMachine);
+  });
 
-  // ─── GET /api/v1/machines/:id ──────────────────────────────────────────
+  // ─── GET /api/v1/machines/:id ──────────────────────────────────────────────
   app.get<{ Params: { id: string } }>("/machines/:id", {
     preHandler: requireAuth,
     schema: {
@@ -54,12 +92,153 @@ export default async function machineRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
-    const machine = store.find((m) => m.id === request.params.id);
-    if (!machine) return reply.status(404).send({ message: "Machine not found" });
-    return machine;
+    const rows = await getDb()
+      .select()
+      .from(machinesTable)
+      .where(eq(machinesTable.id, request.params.id))
+      .limit(1);
+    if (rows.length === 0) return reply.status(404).send({ message: "Machine not found" });
+    return rowToMachine(rows[0]!);
   });
 
-  // ─── GET /api/v1/machines/:id/oee ─────────────────────────────────────
+  // ─── POST /api/v1/machines ─────────────────────────────────────────────────
+  app.post<{ Body: CreateMachineBody }>("/machines", {
+    preHandler: requireRole(["admin"]),
+    schema: {
+      tags: ["Machines"],
+      summary: "Create a new machine (admin only)",
+      body: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          type: { type: "string" },
+          lineId: { type: "string" },
+          idealRatePerMin: { type: "number" },
+          status: { type: "string", enum: ["running", "idle", "fault", "maintenance", "disconnected"] },
+          metadata: { type: "object" },
+        },
+        required: ["id", "name"],
+      },
+      response: {
+        201: { type: "object" },
+        409: { type: "object", properties: { message: { type: "string" } } },
+      },
+    },
+  }, async (request, reply) => {
+    const body = request.body;
+
+    // Check for duplicate ID
+    const existing = await getDb()
+      .select({ id: machinesTable.id })
+      .from(machinesTable)
+      .where(eq(machinesTable.id, body.id))
+      .limit(1);
+    if (existing.length > 0) {
+      return reply.status(409).send({ message: `Machine '${body.id}' already exists` });
+    }
+
+    const rows = await getDb()
+      .insert(machinesTable)
+      .values({
+        id: body.id,
+        name: body.name,
+        description: body.description ?? null,
+        type: body.type ?? null,
+        lineId: body.lineId ?? null,
+        idealRatePerMin: body.idealRatePerMin ?? null,
+        status: (body.status ?? "disconnected") as MachineStatus,
+        metadata: body.metadata ?? {},
+      })
+      .returning();
+
+    return reply.status(201).send(rowToMachine(rows[0]!));
+  });
+
+  // ─── PATCH /api/v1/machines/:id ────────────────────────────────────────────
+  app.patch<{ Params: { id: string }; Body: UpdateMachineBody }>("/machines/:id", {
+    preHandler: requireRole(["admin"]),
+    schema: {
+      tags: ["Machines"],
+      summary: "Update a machine (admin only)",
+      params: {
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"],
+      },
+      body: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          type: { type: "string" },
+          lineId: { type: "string" },
+          idealRatePerMin: { type: ["number", "null"] },
+          status: { type: "string", enum: ["running", "idle", "fault", "maintenance", "disconnected"] },
+          metadata: { type: "object" },
+        },
+      },
+      response: {
+        200: { type: "object" },
+        404: { type: "object", properties: { message: { type: "string" } } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const body = request.body;
+
+    // Build partial update — only include fields that were explicitly provided
+    const update: Partial<typeof machinesTable.$inferInsert> = {};
+    if (body.name !== undefined) update.name = body.name;
+    if (body.description !== undefined) update.description = body.description;
+    if (body.type !== undefined) update.type = body.type;
+    if (body.lineId !== undefined) update.lineId = body.lineId;
+    if ("idealRatePerMin" in body) update.idealRatePerMin = body.idealRatePerMin ?? null;
+    if (body.status !== undefined) update.status = body.status as MachineStatus;
+    if (body.metadata !== undefined) update.metadata = body.metadata;
+
+    if (Object.keys(update).length === 0) {
+      return reply.status(400).send({ message: "No updatable fields provided" });
+    }
+
+    const rows = await getDb()
+      .update(machinesTable)
+      .set(update)
+      .where(eq(machinesTable.id, id))
+      .returning();
+
+    if (rows.length === 0) return reply.status(404).send({ message: "Machine not found" });
+    return rowToMachine(rows[0]!);
+  });
+
+  // ─── DELETE /api/v1/machines/:id ───────────────────────────────────────────
+  app.delete<{ Params: { id: string } }>("/machines/:id", {
+    preHandler: requireRole(["admin"]),
+    schema: {
+      tags: ["Machines"],
+      summary: "Delete a machine (admin only)",
+      params: {
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"],
+      },
+      response: {
+        204: { type: "null" },
+        404: { type: "object", properties: { message: { type: "string" } } },
+      },
+    },
+  }, async (request, reply) => {
+    const rows = await getDb()
+      .delete(machinesTable)
+      .where(eq(machinesTable.id, request.params.id))
+      .returning({ id: machinesTable.id });
+
+    if (rows.length === 0) return reply.status(404).send({ message: "Machine not found" });
+    return reply.status(204).send();
+  });
+
+  // ─── GET /api/v1/machines/:id/oee ─────────────────────────────────────────
   /**
    * Query OEE metrics for a specific machine over a time range.
    *
@@ -68,12 +247,8 @@ export default async function machineRoutes(app: FastifyInstance) {
    *   to           — ISO 8601 end datetime (default: now)
    *   granularity  — "1m" | "1h" | "1d" (default: "1h")
    *
-   * Returns an array of OEESnapshot objects, one per time bucket.
-   *
-   * Acceptance criteria:
-   *   AC-OEE-01: OEE % = availability × performance × quality
-   *   AC-OEE-02: Telemetry persisted to TimescaleDB hypertable
-   *   AC-OEE-03: Aggregates available per shift via continuous aggregates
+   * idealRatePerMin is loaded from the machines table so it stays in sync with
+   * any admin edits — no more hardcoded IDEAL_RATE_PER_MIN constant.
    */
   app.get<{
     Params: { id: string };
@@ -150,12 +325,20 @@ export default async function machineRoutes(app: FastifyInstance) {
       const gran = (granularity ?? "1h") as "1m" | "1h" | "1d";
 
       try {
+        // Load idealRatePerMin from DB so it reflects any admin edits
+        const machineRows = await getDb()
+          .select({ idealRatePerMin: machinesTable.idealRatePerMin })
+          .from(machinesTable)
+          .where(eq(machinesTable.id, id))
+          .limit(1);
+        const idealRatePerMin = machineRows[0]?.idealRatePerMin ?? undefined;
+
         const snapshots = await getOEEService().queryOEE({
           machineId: id,
           from: fromDate,
           to: toDate,
           granularity: gran,
-          idealRatePerMin: IDEAL_RATE_PER_MIN[id],
+          idealRatePerMin,
         });
 
         return snapshots.map((s) => ({
@@ -179,7 +362,7 @@ export default async function machineRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── GET /api/v1/machines/:id/oee/summary ────────────────────────────
+  // ─── GET /api/v1/machines/:id/oee/summary ────────────────────────────────
   /**
    * Returns a single rolled-up OEE value for the entire time window.
    * Defaults to last 8 hours (one shift). Used by dashboard OEE gauge.
@@ -216,11 +399,19 @@ export default async function machineRoutes(app: FastifyInstance) {
       const toDate = request.query.to ? new Date(request.query.to) : new Date();
 
       try {
+        // Load idealRatePerMin from DB
+        const machineRows = await getDb()
+          .select({ idealRatePerMin: machinesTable.idealRatePerMin })
+          .from(machinesTable)
+          .where(eq(machinesTable.id, id))
+          .limit(1);
+        const idealRatePerMin = machineRows[0]?.idealRatePerMin ?? undefined;
+
         const summary = await getOEEService().queryOEESummary(
           id,
           fromDate,
           toDate,
-          IDEAL_RATE_PER_MIN[id]
+          idealRatePerMin
         );
 
         if (!summary) {
