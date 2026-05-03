@@ -111,6 +111,7 @@ export function buildApp() {
     workOrderStore,
   });
   app.register(import("./routes/v1/resource-assignments.js"), { prefix: "/api/v1" });
+  app.register(import("./routes/v1/shifts.js"), { prefix: "/api/v1" });
 
   return app;
 }

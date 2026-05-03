@@ -3,6 +3,7 @@ import { WorkOrderTable } from '@/components/WorkOrderTable'
 import { CreateWorkOrderDialog } from '@/components/CreateWorkOrderDialog'
 import { MachineStatusPanel } from '@/components/OEEPanel'
 import { TelemetryFeed } from '@/components/TelemetryFeed'
+import { ShiftManagementPanel } from '@/components/ShiftManagementPanel'
 import { useAppStore } from '@/store'
 import { useAuthStore } from '@/auth'
 import { LoginPage } from '@/LoginPage'
@@ -88,6 +89,12 @@ export default function App() {
           </section>
 
         </div>
+
+        {/* Shift Management */}
+        <section>
+          <ShiftManagementPanel />
+        </section>
+
       </main>
     </div>
   )
