@@ -64,3 +64,29 @@ export interface Operator {
   name: string
   badge: string
 }
+
+// ─── Shifts ──────────────────────────────────────────────────────────────────
+
+export interface Shift {
+  id: string
+  name: string
+  /** "HH:MM" 24-hour local time */
+  startTime: string
+  /** "HH:MM" 24-hour local time */
+  endTime: string
+  /** 0=Sun, 1=Mon, …, 6=Sat */
+  daysOfWeek: number[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateShiftPayload {
+  name: string
+  startTime: string
+  endTime: string
+  daysOfWeek: number[]
+  isActive?: boolean
+}
+
+export type UpdateShiftPayload = Partial<CreateShiftPayload>

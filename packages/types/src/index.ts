@@ -127,6 +127,29 @@ export interface User {
   createdAt: Date;
 }
 
+// ─── Shifts ──────────────────────────────────────────────────────────────────
+
+/**
+ * A Shift defines a named recurring time window on specific days of the week.
+ * daysOfWeek uses 0=Sun … 6=Sat (matches JS Date.getDay() and most scheduling libs).
+ */
+export interface Shift {
+  id: string;
+  name: string;
+  /** "HH:MM" 24-hour local time */
+  startTime: string;
+  /** "HH:MM" 24-hour local time */
+  endTime: string;
+  /** 0=Sun, 1=Mon, …, 6=Sat */
+  daysOfWeek: number[];
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CreateShiftPayload = Omit<Shift, "id" | "createdAt" | "updatedAt">;
+export type UpdateShiftPayload = Partial<CreateShiftPayload>;
+
 // ─── Production Schedules ─────────────────────────────────────────────────────
 
 export type ProductionScheduleStatus =

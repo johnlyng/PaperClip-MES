@@ -38,3 +38,9 @@ export {
   type MachineTelemetryRow,
   type NewMachineTelemetryRow,
 } from "./machine-telemetry.js";
+
+export {
+  shifts,
+  type ShiftRow,
+  type NewShiftRow,
+} from "./shifts.js";
