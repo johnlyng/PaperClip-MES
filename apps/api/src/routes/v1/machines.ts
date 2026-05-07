@@ -46,6 +46,28 @@ function rowToMachine(row: typeof machinesTable.$inferSelect): Machine {
   };
 }
 
+// ─── Shared response schema ───────────────────────────────────────────────────
+
+/** Full Machine object schema used by POST 201 and PATCH 200 responses.
+ *  fast-json-stringify only serialises declared properties; without this,
+ *  { type: "object" } returns {} — stripping all fields.
+ */
+const machineResponseSchema = {
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    description: { type: "string" },
+    type: { type: "string" },
+    lineId: { type: "string" },
+    idealRatePerMin: { type: ["number", "null"] },
+    status: { type: "string" },
+    metadata: { type: "object" },
+    createdAt: { type: "string" },
+    updatedAt: { type: "string" },
+  },
+} as const;
+
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
 export default async function machineRoutes(app: FastifyInstance) {
@@ -122,7 +144,7 @@ export default async function machineRoutes(app: FastifyInstance) {
         required: ["id", "name"],
       },
       response: {
-        201: { type: "object" },
+        201: machineResponseSchema,
         409: { type: "object", properties: { message: { type: "string" } } },
       },
     },
@@ -180,7 +202,7 @@ export default async function machineRoutes(app: FastifyInstance) {
         },
       },
       response: {
-        200: { type: "object" },
+        200: machineResponseSchema,
         404: { type: "object", properties: { message: { type: "string" } } },
       },
     },
