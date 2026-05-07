@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": ".",
-    "composite": true
+    "composite": true,
+    "types": ["node"]
   },
   "include": ["index.ts", "schema/**/*.ts", "src/**/*.ts", "drizzle.config.ts"],
   "exclude": ["dist", "node_modules"]
