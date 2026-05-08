@@ -11,6 +11,14 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.1.2] - 2026-05-09
+
+### Fixed
+
+- **E2E auth header missing on page.request API calls** (GST-101): After the argon2 auth middleware landed, Playwright's `page.request.*` calls to protected routes returned 401 because the JWT was stored in localStorage (for the React UI) but not sent as an HTTP header. Added `page.setExtraHTTPHeaders({ Authorization: 'Bearer <token>' })` in `authFixture.ts` so all subsequent direct API calls carry the token. Fixes recurring E2E failures on main (GST-99).
+
+---
+
 ## [0.1.1] - 2026-04-28
 
 ### Added
