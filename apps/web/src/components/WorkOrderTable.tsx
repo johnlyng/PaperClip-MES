@@ -12,6 +12,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown, Play, CheckCircle, XCircle } fr
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CloseWorkOrderDialog } from '@/components/CloseWorkOrderDialog'
 import { useAppStore } from '@/store'
 import type { WorkOrder, WorkOrderStatus } from '@/types'
 
@@ -55,11 +56,11 @@ function formatRelativeTime(iso: string | null): string {
 interface ActionsProps {
   row: WorkOrder
   onStart: (id: string) => void
-  onClose: (id: string) => void
+  onRequestClose: (workOrder: WorkOrder) => void
   onCancel: (id: string) => void
 }
 
-function RowActions({ row, onStart, onClose, onCancel }: ActionsProps) {
+function RowActions({ row, onStart, onRequestClose, onCancel }: ActionsProps) {
   if (row.status === 'completed' || row.status === 'cancelled' || row.status === 'draft') {
     return <span className="text-xs text-slate-600">—</span>
   }
@@ -72,7 +73,7 @@ function RowActions({ row, onStart, onClose, onCancel }: ActionsProps) {
         </Button>
       )}
       {row.status === 'in_progress' && (
-        <Button data-testid="close-work-order-btn" size="sm" variant="success" onClick={() => onClose(row.id)} title="Close">
+        <Button data-testid="close-work-order-btn" size="sm" variant="success" onClick={() => onRequestClose(row)} title="Close">
           <CheckCircle className="h-3.5 w-3.5" />
           Close
         </Button>
@@ -90,12 +91,12 @@ function RowActions({ row, onStart, onClose, onCancel }: ActionsProps) {
 function WorkOrderCard({
   order,
   onStart,
-  onClose,
+  onRequestClose,
   onCancel,
 }: {
   order: WorkOrder
   onStart: (id: string) => void
-  onClose: (id: string) => void
+  onRequestClose: (workOrder: WorkOrder) => void
   onCancel: (id: string) => void
 }) {
   const pct = order.targetQty > 0 ? Math.min(100, Math.round((order.actualQty / order.targetQty) * 100)) : 0
@@ -164,7 +165,7 @@ function WorkOrderCard({
               data-testid="close-work-order-btn"
               variant="success"
               className="w-full min-h-[44px]"
-              onClick={() => onClose(order.id)}
+              onClick={() => onRequestClose(order)}
             >
               <CheckCircle className="h-4 w-4 mr-1" />
               Close Work Order
@@ -188,9 +189,10 @@ function WorkOrderCard({
 }
 
 export function WorkOrderTable() {
-  const { workOrders, startWorkOrder, closeWorkOrder, cancelWorkOrder } = useAppStore()
+  const { workOrders, startWorkOrder, cancelWorkOrder } = useAppStore()
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [closingWorkOrder, setClosingWorkOrder] = useState<WorkOrder | null>(null)
 
   const columns: ColumnDef<WorkOrder>[] = [
     {
@@ -250,7 +252,7 @@ export function WorkOrderTable() {
         <RowActions
           row={row.original}
           onStart={startWorkOrder}
-          onClose={closeWorkOrder}
+          onRequestClose={setClosingWorkOrder}
           onCancel={cancelWorkOrder}
         />
       ),
@@ -289,7 +291,7 @@ export function WorkOrderTable() {
               key={row.id}
               order={row.original}
               onStart={startWorkOrder}
-              onClose={closeWorkOrder}
+              onRequestClose={setClosingWorkOrder}
               onCancel={cancelWorkOrder}
             />
           ))
@@ -349,6 +351,11 @@ export function WorkOrderTable() {
       </div>
 
       <p className="text-xs text-slate-500">{filtered.length} orders</p>
+
+      <CloseWorkOrderDialog
+        workOrder={closingWorkOrder}
+        onClose={() => setClosingWorkOrder(null)}
+      />
     </div>
   )
 }
