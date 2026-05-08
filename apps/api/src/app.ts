@@ -20,6 +20,7 @@ export function buildApp() {
 
   app.register(cors, {
     origin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
   app.register(jwt, {
