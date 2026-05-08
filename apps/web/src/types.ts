@@ -11,6 +11,8 @@ export interface WorkOrder {
   machineName: string
   operatorId: string
   operatorName: string
+  /** ID of the shift this work order runs in; references shifts.id */
+  shiftId?: string
   status: WorkOrderStatus
   startedAt: string | null
   completedAt: string | null
@@ -24,6 +26,7 @@ export interface CreateWorkOrderPayload {
   targetQty: number
   machineId: string
   operatorId: string
+  shiftId?: string
   notes?: string
 }
 

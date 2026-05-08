@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { ShiftSelect } from '@/components/ShiftSelect'
 import { useAppStore } from '@/store'
 
 interface FormState {
@@ -19,6 +20,7 @@ interface FormState {
   targetQty: string
   machineId: string
   operatorId: string
+  shiftId: string
   notes: string
 }
 
@@ -28,6 +30,7 @@ const emptyForm: FormState = {
   targetQty: '',
   machineId: '',
   operatorId: '',
+  shiftId: '',
   notes: '',
 }
 
@@ -59,6 +62,7 @@ export function CreateWorkOrderDialog() {
       targetQty: parseInt(form.targetQty, 10),
       machineId: form.machineId,
       operatorId: form.operatorId,
+      shiftId: form.shiftId || undefined,
       notes: form.notes.trim() || undefined,
     })
     setForm(emptyForm)
@@ -159,6 +163,16 @@ export function CreateWorkOrderDialog() {
               </SelectContent>
             </Select>
             {errors.operatorId && <p className="text-xs text-red-400">{errors.operatorId}</p>}
+          </div>
+
+          {/* Shift */}
+          <div className="space-y-1.5">
+            <Label>Shift</Label>
+            <ShiftSelect
+              value={form.shiftId}
+              onChange={v => setForm(f => ({ ...f, shiftId: v }))}
+              placeholder="Select shift (optional)"
+            />
           </div>
 
           {/* Notes */}

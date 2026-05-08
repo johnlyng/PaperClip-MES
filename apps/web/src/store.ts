@@ -127,6 +127,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       machineName: machine?.name ?? 'Unknown',
       operatorId: payload.operatorId,
       operatorName: operator?.name ?? 'Unknown',
+      shiftId: payload.shiftId,
       status: 'draft',
       startedAt: null,
       completedAt: null,

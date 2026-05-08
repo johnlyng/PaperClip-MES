@@ -30,6 +30,9 @@ function validateDaysOfWeek(days: unknown): string | null {
       return "daysOfWeek entries must be integers 0–6 (0=Sun … 6=Sat)";
     }
   }
+  if (new Set(days).size !== days.length) {
+    return "daysOfWeek must not contain duplicate day values";
+  }
   return null;
 }
 

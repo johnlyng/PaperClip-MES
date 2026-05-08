@@ -50,12 +50,12 @@ export const shifts = pgTable(
 
     /**
      * Days this shift runs, as integer array: 0=Sun, 1=Mon, …, 6=Sat.
-     * Stored as a space-separated text column for portability; the service
-     * layer parses/serialises the array.
+     * Stored as a PostgreSQL integer array so every layer receives number[]
+     * without any parse/serialise step.
      *
-     * Example: "1 2 3 4 5" = Mon–Fri.
+     * Example: ARRAY[1,2,3,4,5] = Mon–Fri.
      */
-    daysOfWeek: text("days_of_week").notNull().default("1 2 3 4 5"),
+    daysOfWeek: integer("days_of_week").array().notNull().default(sql`ARRAY[1,2,3,4,5]`),
 
     /** When false, this shift is hidden from selectors but kept for historical FK integrity. */
     isActive: boolean("is_active").notNull().default(true),

@@ -182,8 +182,8 @@ export function ShiftManagementPanel() {
         })
       }
       await fetchShifts()
-    } catch {
-      // silent — the list will re-fetch and show accurate state
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update shift')
     }
   }
 
