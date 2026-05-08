@@ -86,7 +86,7 @@ test.describe("Mobile viewport — shop floor UI (GST-55)", () => {
     const rows = page.locator('[data-testid="work-order-row"]');
 
     // Wait for content to load
-    await page.waitForTimeout(1_000);
+    await page.waitForLoadState('networkidle');
 
     // If there are work orders, they should appear as cards
     const cardCount = await cards.count();
