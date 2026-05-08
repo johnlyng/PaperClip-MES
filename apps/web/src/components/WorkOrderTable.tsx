@@ -86,6 +86,107 @@ function RowActions({ row, onStart, onClose, onCancel }: ActionsProps) {
   )
 }
 
+// Card layout for small viewports (< md breakpoint)
+function WorkOrderCard({
+  order,
+  onStart,
+  onClose,
+  onCancel,
+}: {
+  order: WorkOrder
+  onStart: (id: string) => void
+  onClose: (id: string) => void
+  onCancel: (id: string) => void
+}) {
+  const pct = order.targetQty > 0 ? Math.min(100, Math.round((order.actualQty / order.targetQty) * 100)) : 0
+  const barColor = pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-blue-500' : 'bg-amber-500'
+
+  return (
+    <div data-testid="work-order-card" className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 space-y-3">
+      {/* Header: order number + status */}
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-sm font-semibold text-slate-200">{order.orderNumber}</span>
+        <StatusBadge status={order.status} />
+      </div>
+
+      {/* Part */}
+      <div>
+        <div className="font-medium text-slate-100">{order.partName}</div>
+        <div className="text-xs text-slate-500 font-mono">{order.partNumber}</div>
+      </div>
+
+      {/* Machine / Operator row */}
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <div className="text-xs text-slate-500 mb-0.5">Machine</div>
+          <div className="text-slate-300">{order.machineName}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-500 mb-0.5">Operator</div>
+          <div className="text-slate-300">{order.operatorName}</div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs text-slate-500">
+          <span>Progress</span>
+          <span>{order.actualQty}/{order.targetQty}</span>
+        </div>
+        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {/* Started */}
+      {order.startedAt && (
+        <div className="text-xs text-slate-500">
+          Started {formatRelativeTime(order.startedAt)}
+        </div>
+      )}
+
+      {/* Action buttons — full-width for thumb targets */}
+      {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'draft' && (
+        <div className="flex flex-col gap-2 pt-1">
+          {(order.status === 'released' || order.status === 'pending') && (
+            <Button
+              data-testid="start-work-order-btn"
+              variant="success"
+              className="w-full min-h-[44px]"
+              onClick={() => onStart(order.id)}
+            >
+              <Play className="h-4 w-4 mr-1" />
+              Start Work Order
+            </Button>
+          )}
+          {order.status === 'in_progress' && (
+            <Button
+              data-testid="close-work-order-btn"
+              variant="success"
+              className="w-full min-h-[44px]"
+              onClick={() => onClose(order.id)}
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Close Work Order
+            </Button>
+          )}
+          {(order.status === 'released' || order.status === 'pending' || order.status === 'in_progress') && (
+            <Button
+              data-testid="cancel-work-order-btn"
+              variant="destructive"
+              className="w-full min-h-[44px]"
+              onClick={() => onCancel(order.id)}
+            >
+              <XCircle className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function WorkOrderTable() {
   const { workOrders, startWorkOrder, closeWorkOrder, cancelWorkOrder } = useAppStore()
   const [sorting, setSorting] = useState<SortingState>([])
@@ -167,6 +268,8 @@ export function WorkOrderTable() {
     getFilteredRowModel: getFilteredRowModel(),
   })
 
+  const filtered = table.getFilteredRowModel().rows
+
   return (
     <div className="space-y-3">
       <Input
@@ -175,7 +278,26 @@ export function WorkOrderTable() {
         onChange={e => setGlobalFilter(e.target.value)}
         className="max-w-xs"
       />
-      <div className="rounded-lg border border-slate-700 overflow-hidden">
+
+      {/* Mobile card layout (< md) */}
+      <div className="md:hidden space-y-3">
+        {filtered.length === 0 ? (
+          <p className="text-center text-slate-500 py-12">No work orders found.</p>
+        ) : (
+          filtered.map(row => (
+            <WorkOrderCard
+              key={row.id}
+              order={row.original}
+              onStart={startWorkOrder}
+              onClose={closeWorkOrder}
+              onCancel={cancelWorkOrder}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop table layout (≥ md) */}
+      <div className="hidden md:block rounded-lg border border-slate-700 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             {table.getHeaderGroups().map(hg => (
@@ -225,7 +347,8 @@ export function WorkOrderTable() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500">{table.getFilteredRowModel().rows.length} orders</p>
+
+      <p className="text-xs text-slate-500">{filtered.length} orders</p>
     </div>
   )
 }

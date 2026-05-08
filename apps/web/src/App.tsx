@@ -15,7 +15,7 @@ function Header() {
   const currentUser = useAuthStore(s => s.currentUser)
   const logout = useAuthStore(s => s.logout)
   return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
       <div className="flex items-center gap-3">
         <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm">G</div>
         <div>
@@ -28,7 +28,7 @@ function Header() {
           className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-green-400 shadow-[0_0_6px_#4ade80]' : 'bg-slate-600'}`}
           title={wsConnected ? 'Connected' : 'Disconnected'}
         />
-        <span className="text-xs text-slate-500">
+        <span className="hidden sm:inline text-xs text-slate-500">
           {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
         </span>
         {currentUser && (

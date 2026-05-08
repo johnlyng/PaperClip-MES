@@ -48,5 +48,23 @@ export default defineConfig({
       // already exists from the chromium run. The chromium run covers this spec fully.
       testIgnore: ["**/discrete-manufacturing*.spec.ts"],
     },
+    {
+      name: "tablet-768",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 768, height: 1024 },
+      },
+      // Only run the dedicated mobile spec in mobile viewport projects to avoid
+      // conflicting state with the full E2E suite that runs on chromium.
+      testMatch: ["**/mobile-work-orders.spec.ts"],
+    },
+    {
+      name: "mobile-375",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 375, height: 812 },
+      },
+      testMatch: ["**/mobile-work-orders.spec.ts"],
+    },
   ],
 });
