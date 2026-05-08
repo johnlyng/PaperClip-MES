@@ -25,6 +25,9 @@ async function loginAndSetToken(
   });
   const { token } = (await response.json()) as { token: string };
 
+  // Set Authorization header on all subsequent page.request API calls
+  await page.setExtraHTTPHeaders({ Authorization: `Bearer ${token}` });
+
   // Store the JWT in localStorage so the app picks it up on navigation
   await page.addInitScript((jwt: string) => {
     localStorage.setItem("mes:token", jwt);
