@@ -11,6 +11,20 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.1.3] - 2026-05-10
+
+### Added
+
+- **Mobile-responsive shop floor UI** (GST-55): Full tablet/handheld support for the operator dashboard. Work order list switches to a card layout on small screens (< md breakpoint); start/complete buttons are full-width with minimum 44×44 px tap targets. Completion modal (`CloseWorkOrderDialog`) captures actual quantity produced and is full-screen on mobile.
+- **Playwright mobile viewport projects** (GST-55): `tablet-768` (768 px) and `mobile-375` (375 px) viewport configurations added to `playwright.config.ts`. New E2E suite `mobile-work-orders.spec.ts` covers horizontal-scroll absence, OEE tile visibility, card layout detection, tap-target sizing, and full start/complete work-order flows on mobile.
+
+### Changed
+
+- **Header responsive padding** (GST-55): Header padding changed from fixed `px-6` to `px-4 sm:px-6`; date display hidden on small screens (`hidden sm:inline`) to avoid overflow.
+- **`dialog.tsx` mobile sheet** (GST-55): `DialogContent` is inset-0, rounded-none, and scrollable on mobile; reverts to the original centered sheet at `sm:` and above.
+
+---
+
 ## [0.1.2] - 2026-05-09
 
 ### Fixed
@@ -54,5 +68,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Environment variable management**: `.env.example` files per app; root `.env.local.template` for full-stack local dev
 - **Dockerfiles**: Multi-stage builds for `api`, `web`, `opcua-collector`, `scadalts-collector`
 
+[0.1.3]: https://github.com/johnlyng/PaperClip-MES/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/johnlyng/PaperClip-MES/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/johnlyng/PaperClip-MES/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/gstack/mes/releases/tag/v0.1.0
