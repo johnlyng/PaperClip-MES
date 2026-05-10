@@ -88,7 +88,7 @@ interface AppState {
   // Work order actions
   createWorkOrder: (payload: CreateWorkOrderPayload) => WorkOrder
   startWorkOrder: (id: string) => void
-  closeWorkOrder: (id: string) => void
+  closeWorkOrder: (id: string, actualQty: number) => void
   cancelWorkOrder: (id: string) => void
 
   // Realtime ingestion (called by WS hook)
@@ -150,10 +150,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }))
   },
 
-  closeWorkOrder: (id) => {
+  closeWorkOrder: (id, actualQty) => {
     set(state => ({
       workOrders: state.workOrders.map(wo =>
-        wo.id === id ? { ...wo, status: 'completed', completedAt: new Date().toISOString() } : wo,
+        wo.id === id ? { ...wo, status: 'completed', actualQty, completedAt: new Date().toISOString() } : wo,
       ),
       machines: state.machines.map(m =>
         m.id === state.workOrders.find(w => w.id === id)?.machineId

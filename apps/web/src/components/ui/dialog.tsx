@@ -32,13 +32,17 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 bg-slate-900 border border-slate-700 p-6 shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg',
+        // Mobile: full-screen so the form is usable without horizontal scroll
+        'fixed inset-0 z-50 flex flex-col gap-4 bg-slate-900 p-6 shadow-xl duration-200 overflow-y-auto rounded-none',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        // sm+: centered modal sheet with capped dimensions and rounded corners
+        'sm:inset-auto sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:max-w-lg sm:max-h-[90vh] sm:border sm:border-slate-700 sm:rounded-lg sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95',
         className
       )}
       {...props}
     >
       {children}
-      <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 text-slate-400 hover:text-white transition-opacity focus:outline-none focus:ring-2 focus:ring-slate-400">
+      <DialogClose className="absolute right-2 top-2 p-2 rounded-sm opacity-70 hover:opacity-100 text-slate-400 hover:text-white transition-opacity focus:outline-none focus:ring-2 focus:ring-slate-400">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogClose>
